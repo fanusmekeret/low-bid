@@ -1,0 +1,67 @@
+{
+  "name": "lowbid-backend",
+  "version": "0.7.0",
+  "private": true,
+  "description": "LOW BID lowest-unique-bid auction marketplace API (Bun, Express, Prisma, MySQL, Socket.IO, Chapa)",
+  "type": "module",
+  "engines": {
+    "bun": ">=1.2.0"
+  },
+  "prisma": {
+    "schema": "../database/prisma/schema.prisma",
+    "seed": "bun src/db/seed.js"
+  },
+  "scripts": {
+    "dev": "bun --watch src/server.js",
+    "start": "bun src/server.js",
+    "worker": "bun src/worker.js",
+    "prisma:generate": "bunx prisma generate",
+    "db:migrate": "bunx prisma migrate dev",
+    "db:deploy": "bunx prisma migrate deploy",
+    "db:seed": "bunx prisma db seed",
+    "db:seed:demo": "bun src/db/demo-seed.js",
+    "db:reset": "bunx prisma migrate reset",
+    "test": "bun run test:unit && bun run test:integration",
+    "test:unit": "bun test tests/unit",
+    "test:integration": "for f in tests/integration/*.test.js; do bun test --timeout 30000 \"$f\" || exit 1; done"
+  },
+  "dependencies": {
+    "@prisma/client": "^6.16.0",
+    "@socket.io/redis-adapter": "^8.3.0",
+    "@socket.io/redis-emitter": "^5.1.0",
+    "bullmq": "^5.34.0",
+    "compression": "^1.8.0",
+    "cors": "^2.8.5",
+    "express": "^5.1.0",
+    "express-rate-limit": "^8.1.0",
+    "helmet": "^8.1.0",
+    "ioredis": "^5.6.1",
+    "jsonwebtoken": "^9.0.2",
+    "multer": "^2.0.2",
+    "pino": "^9.6.0",
+    "pino-http": "^10.4.0",
+    "rate-limit-redis": "^4.2.0",
+    "sharp": "^0.35.0",
+    "socket.io": "^4.8.1",
+    "ulid": "^3.0.0",
+    "zod": "^3.24.2"
+  },
+  "devDependencies": {
+    "pino-pretty": "^13.0.0",
+    "prisma": "^6.16.0",
+    "socket.io-client": "^4.8.1",
+    "supertest": "^7.1.0",
+    "@types/bun": "^1.2.19"
+  },
+  "optionalDependencies": {
+    "@aws-sdk/client-s3": "^3.700.0",
+    "@aws-sdk/s3-request-presigner": "^3.700.0"
+  },
+  "packageManager": "bun@1.2.19",
+  "trustedDependencies": [
+    "@prisma/client",
+    "@prisma/engines",
+    "prisma",
+    "sharp"
+  ]
+}
