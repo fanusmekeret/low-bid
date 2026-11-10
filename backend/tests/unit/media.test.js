@@ -106,7 +106,7 @@ describe('storage keys', () => {
   });
   it('blocks path tricks', () => {
     for (const bad of ['../etc/passwd', 'products/../../x', '/abs', 'Products/X', 'a\\b', '']) {
-      assert.throws(() => assertSafeKey(bad), bad);
+      assert.throws(() => assertSafeKey(bad), Error, `should reject ${JSON.stringify(bad)}`);
     }
   });
 });
