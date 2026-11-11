@@ -531,6 +531,7 @@ class PaymentModel {
     required this.purpose,
     required this.status,
     required this.amount,
+    this.bidId,
     this.checkoutUrl,
     this.receiptNo,
     this.auctionId,
