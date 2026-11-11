@@ -19,11 +19,12 @@
     "worker": "bun src/worker.js",
     "worker:dev": "bun scripts/dev-services.js && bun --watch src/worker.js",
     "prisma:generate": "bunx prisma generate",
+    "db:push": "bunx prisma db push",
     "db:migrate": "bunx prisma migrate dev",
     "db:deploy": "bunx prisma migrate deploy",
     "db:seed": "bunx prisma db seed",
     "db:seed:demo": "bun src/db/demo-seed.js",
-    "db:reset": "bunx prisma migrate reset",
+    "db:reset": "bunx prisma db push --force-reset && bun scripts/clear-jobs.js && bunx prisma db seed && bun src/db/demo-seed.js",
     "test": "bun run test:unit && bun run test:integration",
     "test:unit": "bun test tests/unit",
     "test:integration": "for f in tests/integration/*.test.js; do bun test --timeout 30000 \"$f\" || exit 1; done"
