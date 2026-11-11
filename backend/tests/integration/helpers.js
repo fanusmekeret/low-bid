@@ -1,5 +1,5 @@
 // Integration tests need a real MySQL database: set TEST_DATABASE_URL and run
-// `bun run db:deploy` against it once (DATABASE_URL=$TEST_DATABASE_URL bunx prisma migrate deploy).
+// the schema against it once (DATABASE_URL=$TEST_DATABASE_URL bunx prisma db push).
 // The tests wipe every table in that database.
 
 process.env.NODE_ENV = 'test';

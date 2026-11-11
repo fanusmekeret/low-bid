@@ -34,8 +34,7 @@ bun -e "console.log(require('crypto').randomBytes(48).toString('base64url'))"
 # Optional: SUPER_ADMIN_PHONE and SUPER_ADMIN_PASSWORD (12+ chars) to create the first admin
 
 # 3. Create the database schema and seed it
-bun run services:up                  # starts MySQL and Redis in Docker (bun run dev also does this)
-bunx prisma migrate dev --name lowest_unique_bid   # writes database/prisma/migrations/<timestamp>_…/migration.sql — commit it
+bun run services:up                  # starts MySQL and Redis in Docker and creates the tables
 bun run db:seed                      # roles, permissions, categories (with bid fees), settings, super admin
 bun run db:seed:demo                 # optional: demo bidders and 22 LOW BID auctions with secret bids
 
@@ -51,11 +50,23 @@ never have to start them by hand. Data lives in Docker volumes and survives rest
 - `SKIP_DOCKER=1 bun run dev` skips Docker, for a MySQL and Redis you run yourself. Docker is also skipped automatically when `DATABASE_URL` and `REDIS_URL` point to another machine.
 - If port 3306 or 6379 is already used by a MySQL or Redis installed on your computer, stop that service or use `SKIP_DOCKER=1`.
 
-**Upgrading an existing database:** the auction tables changed when the app switched to lowest unique bid:
+**Schema changes in development.** Until the first production release the schema is applied
+with `prisma db push` (there are no migration files yet). `bun run dev` does this on every start,
+so a pulled change that keeps data applies by itself. If a change would delete data (a removed
+column or enum value), `bun run dev` stops and asks you to run:
+
+```bash
+bun run db:reset    # drops the local database, recreates the tables, clears queued jobs, runs both seeds
+```
+
+Before the first production deploy, create the baseline migration with
+`bunx prisma migrate dev --name init` and use `bun run db:deploy` on servers from then on.
+
+**What changed in the auction tables** when the app switched to lowest unique bid:
 - **Removed:** start price, increment, reserve, deposits and anti-sniping.
 - **Added:** item cost, bid fee, bid range and bid status. Seller accounts, documents, payouts and commissions are gone (LOW BID is the only seller).
 
-Run `bunx prisma migrate dev` and review the generated SQL. In development, the simplest path is `bunx prisma migrate reset` followed by both seeds.
+Run `bun run db:reset` once after pulling these changes.
 
 ### Demo logins
 
@@ -95,7 +106,7 @@ bun run test:unit                    # no database needed
 
 # Integration tests use a separate database and wipe it. Payment tests run against a local fake
 # Chapa server (tests/integration/fake-chapa.js); they never call the real Chapa API.
-DATABASE_URL="$TEST_DATABASE_URL" bunx prisma migrate deploy
+DATABASE_URL="$TEST_DATABASE_URL" bunx prisma db push
 TEST_DATABASE_URL=… bun run test:integration   # each file runs in its own Bun process
 ```
 

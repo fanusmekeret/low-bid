@@ -6,6 +6,8 @@
 //   SKIP_DOCKER=1 bun run dev   # use a MySQL/Redis you run yourself
 //
 // If Docker Desktop is closed (macOS or Windows), it is opened and given up to 2 minutes to start.
+// Then the database schema is brought up to date (`prisma db push`), so a pulled schema change
+// applies by itself. A change that would delete data stops here and asks for `bun run db:reset`.
 import { spawnSync } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
@@ -75,6 +77,31 @@ async function up() {
     process.exit(r.status ?? 1);
   }
   log('MySQL on 127.0.0.1:3306 and Redis on 127.0.0.1:6379 are ready');
+  syncSchema();
+}
+
+/** Applies schema changes that keep data. Anything destructive needs an explicit reset. */
+function syncSchema() {
+  if (process.env.SKIP_SCHEMA_SYNC === '1') return;
+  log('checking the database schema…');
+  // No --accept-data-loss: Prisma refuses changes that would drop columns or data.
+  const r = run('bunx', ['prisma', 'db', 'push', '--skip-generate'], { stdio: ['ignore', 'pipe', 'pipe'] });
+  const out = `${r.stdout ?? ''}${r.stderr ?? ''}`;
+  if (r.status === 0) {
+    log(/already in sync/i.test(out) ? 'schema is up to date' : 'schema updated');
+    // Keep the Prisma client in step with the schema.
+    run('bunx', ['prisma', 'generate'], { stdio: 'ignore' });
+    return;
+  }
+  console.error(out.trim());
+  console.error(`
+[services] The database schema changed in a way that would delete data (e.g. a removed column).
+[services] For local development, reset it (deletes local data, then reseeds roles, categories and demo auctions):
+[services]
+[services]     bun run db:reset
+[services]
+[services] Then run bun run dev again. (Set SKIP_SCHEMA_SYNC=1 to skip this check.)`);
+  process.exit(1);
 }
 
 function down() {
