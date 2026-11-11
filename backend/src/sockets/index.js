@@ -1,5 +1,6 @@
 import { Server } from 'socket.io';
 import { env } from '../config/env.js';
+import { corsOrigin } from '../utils/cors.js';
 import { getRedis } from '../config/redis.js';
 import { verifyAccessToken } from '../modules/auth/tokens.js';
 import { logger } from '../utils/logger.js';
@@ -23,7 +24,7 @@ export async function initSockets(httpServer) {
   const io = new Server(httpServer, {
     path: '/socket.io',
     serveClient: false,
-    cors: { origin: env.corsOrigins.length ? env.corsOrigins : false },
+    cors: { origin: corsOrigin },
     pingInterval: 25_000,
     pingTimeout: 20_000,
     maxHttpBufferSize: 10_000, // clients only send tiny control messages

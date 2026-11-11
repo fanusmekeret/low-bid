@@ -2,6 +2,7 @@ import compression from 'compression';
 import cors from 'cors';
 import express from 'express';
 import helmet from 'helmet';
+import { corsOrigin } from './utils/cors.js';
 import pinoHttp from 'pino-http';
 import { env } from './config/env.js';
 import { prisma } from './config/prisma.js';
@@ -37,11 +38,9 @@ export function createApp() {
   app.use(pinoHttp({ logger, genReqId: (req) => req.id, autoLogging: { ignore: (req) => req.url === '/healthz' } }));
   app.use(helmet());
   app.use(cors({
-    origin(origin, cb) {
-      // Mobile apps send no Origin header; browsers must be on the allow list.
-      if (!origin || env.corsOrigins.includes(origin)) return cb(null, true);
-      return cb(null, false);
-    },
+    // Mobile apps send no Origin header; browsers must be on the allow list
+    // (plus any localhost port in development, for Flutter web).
+    origin: corsOrigin,
     credentials: false,
     exposedHeaders: ['X-Server-Time', 'X-Request-Id'], // readable by the Flutter Web admin
     maxAge: 600,
