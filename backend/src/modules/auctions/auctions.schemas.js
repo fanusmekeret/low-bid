@@ -5,10 +5,18 @@ const id = z.coerce.bigint().positive();
 
 export const createAuctionSchema = z.object({
   productId: id,
-  sellerPrice: etb, // what the seller is paid for the item (before commission), whatever the winning bid
+  itemCost: etb, // what the item costs LOW BID; also the default highest allowed bid
   marketValue: etb.optional(), // retail value shown to bidders
-  startsAt: z.string().datetime({ offset: true }).transform((v) => new Date(v)),
+  startsAt: z.string().datetime({ offset: true }).transform((v) => new Date(v)), // now or earlier = start straight away
   durationMinutes: z.number().int().min(1).max(90 * 24 * 60),
+  isFeatured: z.boolean().optional(),
+  // Bidding terms; defaults come from the category / platform settings.
+  bidFee: etb.optional(),
+  minBid: etb.optional(),
+  maxBid: etb.optional(),
+  bidStep: etb.optional(),
+  minPaidBids: z.number().int().min(0).max(100_000).optional(),
+  maxBidsPerUser: z.number().int().min(1).max(1000).optional(),
 });
 
 export const reasonSchema = z.object({ reason: z.string().trim().min(3).max(500) });
@@ -29,15 +37,9 @@ export const adminPatchSchema = z
 
 const page = { page: z.coerce.number().int().min(1).default(1), pageSize: z.coerce.number().int().min(1).max(100).default(25) };
 
-export const sellerListQuery = z.object({
-  status: z.enum(['PENDING_APPROVAL', 'SCHEDULED', 'LIVE', 'CLOSED', 'CANCELLED']).optional(),
-  ...page,
-});
-
 export const adminListQuery = z.object({
-  status: z.enum(['PENDING_APPROVAL', 'SCHEDULED', 'LIVE', 'CLOSED', 'CANCELLED']).optional(),
+  status: z.enum(['SCHEDULED', 'LIVE', 'CLOSED', 'CANCELLED']).optional(),
   q: z.string().trim().min(1).max(100).optional(),
-  sellerId: id.optional(),
   ...page,
 });
 

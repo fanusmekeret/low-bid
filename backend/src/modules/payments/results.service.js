@@ -62,12 +62,12 @@ export async function expireUnpaidResult(resultId) {
     return { result: 'grace' };
   }
 
-  const [rules, fees] = await Promise.all([getSetting('auction.rules'), getSetting('fees.commission')]);
+  const [rules, fees] = await Promise.all([getSetting('auction.rules'), getSetting('fees')]);
 
   const out = await prisma.$transaction(async (tx) => {
     const rows = await tx.$queryRaw`SELECT id, UTC_TIMESTAMP(3) AS now FROM auction_results WHERE id = ${r0.id} FOR UPDATE`;
     const now = new Date(rows[0].now);
-    const r = await tx.auctionResult.findUnique({ where: { id: r0.id }, include: { auction: { include: { product: { include: { seller: true } } } } } });
+    const r = await tx.auctionResult.findUnique({ where: { id: r0.id }, include: { auction: { include: { product: true } } } });
     if (r.status !== 'AWAITING_PAYMENT' || now < r.paymentDeadline) return { result: 'skipped' };
     const title = r.auction.product.title;
     const defaulter = r.winnerId;
@@ -113,7 +113,6 @@ export async function expireUnpaidResult(resultId) {
 
     // 3. Nobody left.
     const updated = await tx.auctionResult.update({ where: { id: r.id }, data: { status: 'PAYMENT_EXPIRED', offerHistory: history } });
-    await notify(r.auction.product.seller.userId, 'AUCTION_UNSOLD', { title, notEnoughBids: false }, { auctionId: r.auctionId }, tx);
     await recordAudit({ actorId: null, action: 'result.payment_expired', entity: 'auction_result', entityId: r.id, before: { winnerId: defaulter } }, tx);
     return { result: 'expired', updated };
   });
@@ -126,17 +125,68 @@ export async function expireUnpaidResult(resultId) {
   return { result: out.result };
 }
 
-/** The buyer has the item: release the seller's payout now instead of after the dispute window. */
+// ───────────────────────────── Delivery (LOW BID fulfils every order) ─────────────────────────────
+
+const presentOrder = (r) => ({
+  id: r.id.toString(),
+  auctionId: r.auctionId.toString(),
+  title: r.auction?.product?.title,
+  status: r.status,
+  finalPrice: moneyDto(r.finalPrice),
+  totalDue: moneyDto(r.totalDue),
+  paidAt: r.paidAt,
+  fulfilledAt: r.fulfilledAt,
+  confirmedAt: r.confirmedAt,
+  winner: r.winner ? { id: r.winner.id.toString(), name: `${r.winner.firstName} ${r.winner.lastName}`, phone: r.winner.phone } : null,
+});
+
+/**
+ * Won items for staff: by default the ones paid and waiting for delivery.
+ * @param {{ status?: string, page: number, pageSize: number }} q
+ */
+export async function listOrders({ status = 'PAID', page, pageSize }) {
+  const where = { outcome: 'SOLD', status };
+  const [total, rows] = await Promise.all([
+    prisma.auctionResult.count({ where }),
+    prisma.auctionResult.findMany({
+      where,
+      include: { auction: { include: { product: { select: { title: true } } } }, winner: { select: { id: true, firstName: true, lastName: true, phone: true } } },
+      orderBy: { paidAt: 'asc' },
+      skip: (page - 1) * pageSize,
+      take: pageSize,
+    }),
+  ]);
+  return { data: rows.map(presentOrder), meta: { page, pageSize, total, totalPages: Math.ceil(total / pageSize) } };
+}
+
+/** Staff record that LOW BID delivered or handed over the item. The winner is told. */
+export async function markDelivered(resultId, { note, actorId, req }) {
+  const r = await prisma.$transaction(async (tx) => {
+    const rows = await tx.$queryRaw`SELECT id FROM auction_results WHERE id = ${BigInt(resultId)} FOR UPDATE`;
+    if (!rows.length) throw notFound('RESULT_NOT_FOUND', 'Order not found');
+    const res = await tx.auctionResult.findUnique({ where: { id: rows[0].id }, include: { auction: { include: { product: { select: { title: true } } } } } });
+    if (res.status === 'FULFILLED') return res;
+    if (res.status !== 'PAID') throw conflict('ORDER_NOT_PAID', `This order is ${res.status.toLowerCase().replace('_', ' ')}; only paid orders can be delivered`);
+    const updated = await tx.auctionResult.update({ where: { id: res.id }, data: { status: 'FULFILLED', fulfilledAt: new Date() } });
+    const { disputeWindowDays } = await getSetting('orders.policy');
+    await notify(res.winnerId, 'ITEM_DELIVERED', { title: res.auction.product.title, days: disputeWindowDays }, { auctionId: res.auctionId }, tx);
+    await recordAudit({ actorId, action: 'order.delivered', entity: 'auction_result', entityId: res.id, after: { note }, req }, tx);
+    return updated;
+  });
+  return { id: r.id.toString(), status: r.status, fulfilledAt: r.fulfilledAt };
+}
+
+/** The winner confirms the item arrived as described. This closes refund requests for the order. */
 export async function confirmReceived(userId, auctionId, { req }) {
   return prisma.$transaction(async (tx) => {
     const rows = await tx.$queryRaw`SELECT id FROM auction_results WHERE auction_id = ${BigInt(auctionId)} FOR UPDATE`;
     if (!rows.length) throw notFound('RESULT_NOT_FOUND', 'Auction result not found');
     const r = await tx.auctionResult.findUnique({ where: { id: rows[0].id } });
     if (r.winnerId !== BigInt(userId)) throw notFound('RESULT_NOT_FOUND', 'Auction result not found');
-    if (r.status === 'FULFILLED') return { status: 'FULFILLED' };
-    if (r.status !== 'PAID') throw conflict('NOT_PAID', 'Confirm receipt after paying, and not while a refund request is open');
-    await tx.auctionResult.update({ where: { id: r.id }, data: { status: 'FULFILLED', fulfilledAt: new Date() } });
-    await tx.sellerPayout.updateMany({ where: { resultId: r.id, status: 'PENDING' }, data: { releaseAfter: new Date() } });
+    if (r.confirmedAt) return { status: r.status };
+    if (!['PAID', 'FULFILLED'].includes(r.status)) throw conflict('NOT_PAID', 'Confirm receipt after paying, and not while a refund request is open');
+    const now = new Date();
+    await tx.auctionResult.update({ where: { id: r.id }, data: { status: 'FULFILLED', confirmedAt: now, fulfilledAt: r.fulfilledAt ?? now } });
     await recordAudit({ actorId: userId, action: 'result.confirm_received', entity: 'auction_result', entityId: r.id, req }, tx);
     return { status: 'FULFILLED' };
   });

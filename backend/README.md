@@ -6,24 +6,24 @@ LOW BID runs **lowest unique bid** auctions:
 
 - **Bidding:** each bid is a secret amount (for example 37.45 ETB) plus a bid fee paid through Chapa. A bid counts once its fee is verified.
 - **Winning:** when the auction ends, the lowest amount that exactly one person bid wins. If no amount is unique, the lowest amount wins, and among bids on it the one whose fee was confirmed first.
-- **Paying:** the winner pays their bid amount. The seller is paid the price agreed when the auction was created, less the 10% commission, and bid fees fund the difference.
-- **Secrecy:** amounts stay secret until the close, even from the seller. Then the full ranking is published.
+- **Paying:** the winner pays their bid amount. Bid fees and the winning bid together pay for the item.
+- **Secrecy:** amounts stay secret until the close, even from LOW BID staff screens. Then the full ranking is published.
+- **One seller:** LOW BID itself writes every listing, sets prices and fees, and delivers every won item. There is no seller portal; staff manage everything under `/api/v1/admin`.
 
 Built so far:
 - **Accounts:** authentication (phone and password, SMS OTP, JWT access tokens with rotating refresh tokens), users, roles and permissions, audit logging.
-- **Selling:** seller applications and verification, categories, product listings with spec sheets, photo uploads.
+- **Listings:** categories, LOW BID's own product listings with spec sheets and photo uploads, staff-scheduled auctions, order delivery.
 - **Platform:** settings and in-app notifications.
 - **Auctions:** the lowest-unique-bid engine, Socket.IO live updates, automatic closing.
-- **Payments:** Chapa bid fees and winner payments, refunds, payouts, and the ledger.
+- **Payments:** Chapa bid fees and winner payments, refunds, and the ledger.
 
 > **Before launch:** paid-entry lowest-unique-bid auctions can be treated as a lottery or game of chance. Confirm the licensing position in Ethiopia (National Lottery Administration) with a lawyer.
 
 ## Run it locally
 
 ```bash
-# 1. Install Bun (https://bun.sh), then start MySQL and Redis (from the repo root)
+# 1. Install Bun (https://bun.sh) and Docker Desktop
 curl -fsSL https://bun.sh/install | bash
-docker compose -f deployment/docker-compose.dev.yml up -d
 
 # 2. Install and configure
 cd backend
@@ -34,19 +34,40 @@ bun -e "console.log(require('crypto').randomBytes(48).toString('base64url'))"
 # Optional: SUPER_ADMIN_PHONE and SUPER_ADMIN_PASSWORD (12+ chars) to create the first admin
 
 # 3. Create the database schema and seed it
+bun run services:up                  # starts MySQL and Redis in Docker (bun run dev also does this)
 bunx prisma migrate dev --name lowest_unique_bid   # writes database/prisma/migrations/<timestamp>_…/migration.sql — commit it
 bun run db:seed                      # roles, permissions, categories (with bid fees), settings, super admin
-bun run db:seed:demo                 # optional: demo sellers, bidders, 22 auctions with secret bids
+bun run db:seed:demo                 # optional: demo bidders and 22 LOW BID auctions with secret bids
 
 # 4. Start the API
 bun run dev                          # http://localhost:4000/healthz (also runs the auction jobs)
 ```
 
+`bun run dev` first makes sure the MySQL and Redis containers are running, starting them
+(and Docker Desktop, on macOS and Windows) if needed, and waits until they are healthy, so you
+never have to start them by hand. Data lives in Docker volumes and survives restarts.
+
+- `bun run services:down` stops the containers.
+- `SKIP_DOCKER=1 bun run dev` skips Docker, for a MySQL and Redis you run yourself. Docker is also skipped automatically when `DATABASE_URL` and `REDIS_URL` point to another machine.
+- If port 3306 or 6379 is already used by a MySQL or Redis installed on your computer, stop that service or use `SKIP_DOCKER=1`.
+
 **Upgrading an existing database:** the auction tables changed when the app switched to lowest unique bid:
 - **Removed:** start price, increment, reserve, deposits and anti-sniping.
-- **Added:** seller price, bid fee, bid range and bid status.
+- **Added:** item cost, bid fee, bid range and bid status. Seller accounts, documents, payouts and commissions are gone (LOW BID is the only seller).
 
 Run `bunx prisma migrate dev` and review the generated SQL. In development, the simplest path is `bunx prisma migrate reset` followed by both seeds.
+
+### Demo logins
+
+There are no built-in passwords: you choose them in `.env` before seeding.
+
+| Who | Phone | Password |
+| --- | --- | --- |
+| Demo bidders (8 accounts) | `0900000201` … `0900000208` (e.g. `0900000201`, Abebe Kebede) | `DEMO_USER_PASSWORD` from `.env`; if unset, `bun run db:seed:demo` makes a random one and prints it |
+| Staff (super admin) | `SUPER_ADMIN_PHONE` from `.env` | `SUPER_ADMIN_PASSWORD` from `.env` (12+ characters), created by `bun run db:seed` |
+
+Demo bidders' phones are already verified, so they can bid straight away. The LOW BID house
+account that owns every listing (`+251999000000`) cannot sign in.
 
 Redis is required: it runs the auction start and close jobs and shares live updates between
 API processes. To run jobs in their own process, set `RUN_WORKERS=false` on the API and start
@@ -85,7 +106,7 @@ The full list with request fields and rules is in [`docs/API.md`](../docs/API.md
 ## Photos and documents
 
 With `STORAGE_DRIVER=local` (the default), files live under `backend/storage/`:
-`public/` for product photos (served at `/media`) and `private/` for seller ID documents
+`public/` for product photos (served at `/media`) and `private/` for private files
 (only reachable through 5-minute signed links). Back up this folder with the database.
 For S3-compatible storage (Backblaze B2, Wasabi, Cloudflare R2), set `STORAGE_DRIVER=s3`
 and the `S3_*` variables, and run `bun install` so the optional AWS SDK is present.

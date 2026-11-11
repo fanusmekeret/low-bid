@@ -9,15 +9,14 @@ import { errorHandler, notFoundHandler } from './middleware/errorHandler.js';
 import { globalLimiter } from './middleware/rateLimit.js';
 import { requestId } from './middleware/requestId.js';
 import { adminUsersRouter } from './modules/admin/users.admin.routes.js';
-import { adminAuctionsRouter, adminBidsRouter, sellerAuctionsRouter } from './modules/auctions/auctions.manage.routes.js';
+import { adminAuctionsRouter, adminBidsRouter } from './modules/auctions/auctions.manage.routes.js';
 import { auctionsRouter, homeRouter, myAuctionsRouter } from './modules/auctions/catalog.routes.js';
 import { authRouter } from './modules/auth/auth.routes.js';
 import { adminCategoriesRouter, categoriesRouter } from './modules/categories/categories.routes.js';
 import { privateFilesRouter, publicMediaRouter } from './modules/media/media.routes.js';
 import { notificationsRouter } from './modules/notifications/notifications.routes.js';
-import { adminPaymentsRouter, myPaymentsRouter, paymentsRouter, sellerMoneyRouter } from './modules/payments/payments.routes.js';
-import { adminProductsRouter, sellerProductsRouter } from './modules/products/products.routes.js';
-import { adminSellersRouter, sellerRouter } from './modules/sellers/sellers.routes.js';
+import { adminPaymentsRouter, myPaymentsRouter, paymentsRouter } from './modules/payments/payments.routes.js';
+import { adminProductsRouter } from './modules/products/products.routes.js';
 import { adminSettingsRouter } from './modules/settings/settings.admin.routes.js';
 import { meRouter } from './modules/users/users.routes.js';
 import { logger } from './utils/logger.js';
@@ -74,17 +73,12 @@ export function createApp() {
   api.use('/home', homeRouter);
   api.use('/auctions', auctionsRouter); // includes POST /auctions/:id/bids
   api.use('/files/private', privateFilesRouter());
-  // Seller routes: more specific paths first.
-  api.use('/seller/products', sellerProductsRouter);
-  api.use('/seller/auctions', sellerAuctionsRouter);
-  api.use('/seller', sellerMoneyRouter); // /seller/earnings, /seller/payouts
-  api.use('/seller', sellerRouter);
+  // LOW BID is the only seller: listings and auctions are managed by staff under /admin.
   // Admin routes: specific sections first, then the users/roles router at /admin.
-  api.use('/admin/sellers', adminSellersRouter);
   api.use('/admin/products', adminProductsRouter);
   api.use('/admin/auctions', adminAuctionsRouter);
   api.use('/admin/bids', adminBidsRouter);
-  api.use('/admin', adminPaymentsRouter); // /admin/payments, /refunds, /payouts, /ledger
+  api.use('/admin', adminPaymentsRouter); // /admin/payments, /refunds, /orders, /ledger
   api.use('/admin/categories', adminCategoriesRouter);
   api.use('/admin/settings', adminSettingsRouter);
   api.use('/admin', adminUsersRouter);

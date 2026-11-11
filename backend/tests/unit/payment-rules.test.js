@@ -3,42 +3,32 @@ import { createHmac } from 'node:crypto';
 import { describe, it } from 'bun:test';
 import {
   TX_REF_PATTERN, buildTxRef, chapaPhone, chapaText, classifyVerification, computeSettlement, isBalanced, ledger,
-  receiptNumber, refundableAmount, splitSaleRefund, verifyWebhookSignature,
+  receiptNumber, refundableAmount, verifyWebhookSignature,
 } from '../../src/modules/payments/payment.rules.js';
 
 const ETB = (n) => BigInt(Math.round(n * 100));
 
 describe('settlement', () => {
-  it('the winner pays their (small) bid; the seller gets the agreed price less 10%', () => {
-    const s = computeSettlement({ finalPrice: ETB(37.45), buyerPremium: 0n, sellerPrice: ETB(145_000), sellerCommissionBp: 1000 });
+  it('the winner pays their bid; all of it is LOW BID revenue', () => {
+    const s = computeSettlement({ finalPrice: ETB(37.45), buyerPremium: 0n });
     assert.equal(s.cashDue, ETB(37.45));
     assert.equal(s.total, ETB(37.45));
-    assert.equal(s.commission, ETB(14_500));
-    assert.equal(s.sellerNet, ETB(130_500));
   });
-  it('adds a buyer premium to what the winner pays when configured', () => {
-    const s = computeSettlement({ finalPrice: ETB(100), buyerPremium: ETB(5), sellerPrice: ETB(1000), sellerCommissionBp: 1000 });
-    assert.equal(s.cashDue, ETB(105));
-    assert.equal(s.sellerNet, ETB(900));
-  });
-  it('rounds commission to the santim without losing any', () => {
-    const s = computeSettlement({ finalPrice: 1n, buyerPremium: 0n, sellerPrice: 12_345n, sellerCommissionBp: 1000 });
-    assert.equal(s.commission + s.sellerNet, 12_345n);
+  it('adds a buyer premium when configured', () => {
+    assert.equal(computeSettlement({ finalPrice: ETB(100), buyerPremium: ETB(5) }).cashDue, ETB(105));
   });
 });
 
 describe('ledger', () => {
-  const s = computeSettlement({ finalPrice: ETB(37.45), buyerPremium: 0n, sellerPrice: ETB(145_000), sellerCommissionBp: 1000 });
+  const s = computeSettlement({ finalPrice: ETB(37.45), buyerPremium: 0n });
   const groups = {
     bidFeePaid: ledger.bidFeePaid(ETB(10)),
     bidFeeRefunded: ledger.bidFeeRefunded(ETB(10)),
     salePaid: ledger.salePaid(s),
     providerFee: ledger.providerFee(ETB(0.35)),
-    payoutPaid: ledger.payoutPaid(s.sellerNet),
-    payoutReversed: ledger.payoutReversed(s.sellerNet),
     unappliedReceived: ledger.unappliedReceived(ETB(10)),
     unappliedRefunded: ledger.unappliedRefunded(ETB(10)),
-    saleRefunded: ledger.saleRefunded({ fromSeller: ETB(100), fromPlatform: ETB(5) }),
+    saleRefunded: ledger.saleRefunded(ETB(37.45)),
   };
   for (const [name, lines] of Object.entries(groups)) {
     it(`${name} balances`, () => {
@@ -53,19 +43,15 @@ describe('ledger', () => {
     assert.equal(net, 0n);
   });
   it('skips zero-amount moves', () => assert.deepEqual(ledger.bidFeePaid(0n), []));
-  it('a sale credits the seller the agreed price less commission, paid from platform revenue', () => {
-    const toSeller = groups.salePaid.find((l) => l.account === 'SELLER_PAYABLE');
-    assert.equal(toSeller.direction, 'DEBIT');
-    assert.equal(toSeller.amount, ETB(130_500));
+  it('a sale ends up in platform revenue (there are no seller payouts)', () => {
+    const revenue = groups.salePaid.find((l) => l.account === 'PLATFORM_REVENUE');
+    assert.equal(revenue.direction, 'DEBIT');
+    assert.equal(revenue.amount, ETB(37.45));
+    assert.ok(!groups.salePaid.some((l) => l.account === 'SELLER_PAYABLE'));
   });
   it('detects unbalanced groups', () => {
     assert.equal(isBalanced([{ account: 'ESCROW', direction: 'DEBIT', amount: 5n }]), false);
     assert.equal(isBalanced([{ account: 'ESCROW', direction: 'DEBIT', amount: 0n }, { account: 'EXTERNAL', direction: 'CREDIT', amount: 0n }]), false);
-  });
-  it('splits a sale refund seller first', () => {
-    assert.deepEqual(splitSaleRefund(ETB(1000), { sellerNetUnpaid: ETB(900) }), { fromSeller: ETB(900), fromPlatform: ETB(100) });
-    assert.deepEqual(splitSaleRefund(ETB(500), { sellerNetUnpaid: ETB(900) }), { fromSeller: ETB(500), fromPlatform: 0n });
-    assert.deepEqual(splitSaleRefund(ETB(500), { sellerNetUnpaid: 0n }), { fromSeller: 0n, fromPlatform: ETB(500) });
   });
   it('limits refunds to what is left', () => {
     assert.equal(refundableAmount({ status: 'PAID', amount: ETB(100), refundedAmount: 0n }), ETB(100));

@@ -24,19 +24,12 @@ import '../features/payments/presentation/payment_history_screen.dart';
 import '../features/payments/presentation/payment_status_screen.dart';
 import '../features/payments/presentation/receipt_screen.dart';
 import '../features/search/presentation/search_screen.dart';
-import '../features/seller/presentation/auction_create_screen.dart';
-import '../features/seller/presentation/listing_editor_screen.dart';
-import '../features/seller/presentation/listings_screen.dart';
-import '../features/seller/presentation/seller_apply_screen.dart';
-import '../features/seller/presentation/seller_auctions_screen.dart';
-import '../features/seller/presentation/seller_dashboard_screen.dart';
-import '../features/seller/presentation/seller_documents_screen.dart';
 import 'shell.dart';
 
 final _rootKey = GlobalKey<NavigatorState>();
 
 /// Paths that need a signed-in user. Tab roots handle guests themselves.
-const _protected = ['/watchlist', '/won', '/notifications', '/payments', '/profile', '/otp', '/seller'];
+const _protected = ['/watchlist', '/won', '/notifications', '/payments', '/profile', '/otp'];
 const _authPages = ['/login', '/register', '/forgot-password'];
 
 /// Bridges Riverpod state into GoRouter's refreshListenable.
@@ -122,14 +115,6 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(path: '/payments/:txRef', parentNavigatorKey: _rootKey, builder: (_, s) => PaymentStatusScreen(txRef: s.pathParameters['txRef']!)),
       GoRoute(path: '/payments/:txRef/receipt', parentNavigatorKey: _rootKey, builder: (_, s) => ReceiptScreen(txRef: s.pathParameters['txRef']!)),
 
-      GoRoute(path: '/seller', parentNavigatorKey: _rootKey, builder: (_, __) => const SellerDashboardScreen()),
-      GoRoute(path: '/seller/apply', parentNavigatorKey: _rootKey, builder: (_, __) => const SellerApplyScreen()),
-      GoRoute(path: '/seller/documents', parentNavigatorKey: _rootKey, builder: (_, __) => const SellerDocumentsScreen()),
-      GoRoute(path: '/seller/listings', parentNavigatorKey: _rootKey, builder: (_, __) => const ListingsScreen()),
-      GoRoute(path: '/seller/listings/new', parentNavigatorKey: _rootKey, builder: (_, __) => const ListingEditorScreen()),
-      GoRoute(path: '/seller/listings/:id', parentNavigatorKey: _rootKey, builder: (_, s) => ListingEditorScreen(productId: s.pathParameters['id'])),
-      GoRoute(path: '/seller/auctions', parentNavigatorKey: _rootKey, builder: (_, __) => const SellerAuctionsScreen()),
-      GoRoute(path: '/seller/auctions/new', parentNavigatorKey: _rootKey, builder: (_, s) => AuctionCreateScreen(productId: s.uri.queryParameters['productId'] ?? '')),
     ],
   );
 });

@@ -8,7 +8,7 @@ Base URL: `/api/v1`. All bodies are JSON unless marked **multipart**.
 - Money: `{ "minor": "16400000", "etb": "164000.00", "currency": "ETB" }`. `minor` is santim (1 ETB = 100).
 - Every response carries `X-Server-Time` (epoch ms) for countdown clocks.
 
-Status: phases 2–6. Auctions are **lowest unique bid**: each bid is a secret amount plus a bid fee paid through Chapa; at the close the lowest amount that exactly one person bid wins (if none is unique, the lowest amount, earliest confirmed fee). Runtime: Bun.
+Status: phases 2–6. **LOW BID is the only seller:** staff write every listing, schedule every auction and deliver every won item; there is no seller portal. Auctions are **lowest unique bid**: each bid is a secret amount plus a bid fee paid through Chapa; at the close the lowest amount that exactly one person bid wins (if none is unique, the lowest amount, earliest confirmed fee). Runtime: Bun.
 
 ---
 
@@ -50,33 +50,20 @@ Status: phases 2–6. Auctions are **lowest unique bid**: each bid is a secret a
 
 Categories are at most two levels deep. Products go in a category with no active subcategories.
 
-## Seller account
+## Admin: listings (LOW BID's own)
 
-| Method | Path | Notes |
+| Method | Path | Notes (permission `product:manage`) |
 | --- | --- | --- |
-| POST | /seller/apply | Verified phone required. `businessName, businessType (INDIVIDUAL, COMPANY), tinNumber? (10 digits, required for companies), city, address?, bio?, payoutMethod (BANK_TRANSFER, TELEBIRR), payoutBankCode?, payoutAccountName, payoutAccountNo` |
-| GET | /seller/profile | Includes `documents` and `missing` (what's still needed before approval) |
-| PATCH | /seller/profile | Approved sellers can't change name, type or TIN themselves. Payout changes are audit-logged |
-| POST | /seller/documents | **multipart**: `documentType` (FAYDA_ID, KEBELE_ID, PASSPORT, DRIVING_LICENSE, TRADE_LICENSE, TIN_CERTIFICATE), `file` (JPEG, PNG, WebP or PDF, 8 MB max) |
-| DELETE | /seller/documents/:id | Only while pending review |
-
-Approval needs one identity document. Companies also need a trade licence and a TIN.
-
-## Seller listings
-
-Requires an approved seller account.
-
-| Method | Path | Notes |
-| --- | --- | --- |
-| GET | /seller/products?status=&page= | Archived listings hidden unless `status=ARCHIVED` |
-| POST | /seller/products | `categoryId, title, description, condition, location, attributes` creates a DRAFT |
-| GET | /seller/products/:id | |
-| PATCH | /seller/products/:id | Editing an APPROVED listing sends it back to PENDING_REVIEW |
-| DELETE | /seller/products/:id | Drafts are deleted; anything reviewed is archived. Returns `{ mode }` |
-| POST | /seller/products/:id/images | **multipart**: up to 10 files in `images`. All-or-nothing; a bad file returns `details.fileIndex` |
-| PUT | /seller/products/:id/images/order | `imageIds` must list every photo exactly once |
-| DELETE | /seller/products/:id/images/:imageId | |
-| POST | /seller/products/:id/submit | DRAFT or REJECTED → PENDING_REVIEW. Needs at least `listing.rules.minImagesToSubmit` photos |
+| GET | /admin/products?status=&categoryId=&q= | `status`: DRAFT, APPROVED (published), ARCHIVED. Archived listings hidden unless asked for |
+| POST | /admin/products | `categoryId, title, description, condition, location, attributes` creates a DRAFT owned by LOW BID |
+| GET | /admin/products/:id | |
+| PATCH | /admin/products/:id | Refused while an auction is scheduled or live, or once sold (`lockedReason`) |
+| DELETE | /admin/products/:id | Drafts without history are deleted; anything else is archived. Returns `{ mode }` |
+| POST | /admin/products/:id/images | **multipart**: up to 10 files in `images`. All-or-nothing; a bad file returns `details.fileIndex` |
+| PUT | /admin/products/:id/images/order | `imageIds` must list every photo exactly once |
+| DELETE | /admin/products/:id/images/:imageId | |
+| POST | /admin/products/:id/publish | DRAFT → APPROVED (published). Needs at least `listing.rules.minImagesToSubmit` photos |
+| POST | /admin/products/:id/archive | `reason`. Refused while an auction is scheduled or live |
 
 `attributes` is the spec sheet:
 
@@ -91,25 +78,8 @@ Requires an approved seller account.
 
 - Highlights (up to 3) appear on auction cards; cards never show prices.
 - Titles and spec sheets containing ETB, birr or ብር are rejected.
-- A listing is locked while an auction is pending approval, scheduled or live, and once sold (`lockedReason`).
 
-Photos are re-encoded to WebP at 320, 800 and 1600 px wide (`urls.sm`, `urls.md`, `urls.lg`). This strips EXIF data such as GPS location and rotates photos upright. The shortest side must be at least 400 px. iPhone HEIC photos are rejected with `IMAGE_FORMAT_UNSUPPORTED`; the Flutter picker converts to JPEG before upload.
-
-## Admin: sellers and listings
-
-| Method | Path | Permission |
-| --- | --- | --- |
-| GET | /admin/sellers?status=PENDING&q= | `seller:review` (pending: oldest first) |
-| GET | /admin/sellers/:id | Document links valid for 5 minutes; full payout account only with `payout:manage` |
-| POST | /admin/sellers/:id/approve | Grants the seller role and notifies the seller |
-| POST | /admin/sellers/:id/reject | `reason` |
-| POST | /admin/sellers/:id/suspend | `reason`; plus `user:manage`. Removes the seller role |
-| POST | /admin/sellers/:id/reinstate | plus `user:manage` |
-| GET | /admin/products?status=PENDING_REVIEW&categoryId=&sellerId=&q= | `product:manage` |
-| GET | /admin/products/:id | |
-| POST | /admin/products/:id/approve | Notifies the seller |
-| POST | /admin/products/:id/reject | `reason` |
-| POST | /admin/products/:id/archive | `reason`. Refused while an auction is scheduled or live |
+Photos are re-encoded to WebP at 320, 800 and 1600 px wide (`urls.sm`, `urls.md`, `urls.lg`). This strips EXIF data such as GPS location and rotates photos upright. The shortest side must be at least 400 px. iPhone HEIC photos are rejected with `IMAGE_FORMAT_UNSUPPORTED`.
 
 ## Browsing (public)
 
@@ -117,7 +87,7 @@ Photos are re-encoded to WebP at 320, 800 and 1600 px wide (`urls.sm`, `urls.md`
 | --- | --- | --- |
 | GET | /home | Rails: `banners, featured, endingSoon` (within 1 hour), `live` (most bids), `upcoming, recentlyAdded, popularCategories`. Cached 10–15 s |
 | GET | /auctions?status=&category=&q=&condition=&featured=true&sort=&page=&pageSize= | `status`: open (default), live, upcoming, ended (last 30 days). `sort`: ending_soon, newest, most_bids, starting_soon. `category` includes subcategories. `q` matches title and description (English and Amharic) |
-| GET | /auctions/:id | Auction page: `bidding` (`bidFee, minBid, maxBid, bidStep, maxBidsPerUser, minPaidBids`), `marketValue`, full spec sheet, all photos, seller. After the close: `result` (`outcome, finalPrice, winnerAlias, paidBids, uniqueBids`). Signed-in viewers also get `viewer` (`isWatching, isSeller, myBidCount, myPendingCount, myStatus`). **No bid amounts while bidding is open** |
+| GET | /auctions/:id | Auction page: `bidding` (`bidFee, minBid, maxBid, bidStep, maxBidsPerUser, minPaidBids`), `marketValue`, full spec sheet, all photos, seller. After the close: `result` (`outcome, finalPrice, winnerAlias, paidBids, uniqueBids`). Signed-in viewers also get `viewer` (`isWatching, myBidCount, myPendingCount, myStatus`). **No bid amounts while bidding is open** |
 | GET | /auctions/:id/bids?cursor=&limit= | **Only after the close** (before: `403 BIDS_SECRET`). Every paid bid in ranking order: `rank, amount, unique, isWinning, bidderAlias, isYou`. Names masked (`A***e · 7F3C`, the tag stable within one auction only) |
 | GET | /auctions/:id/bids/mine | Signed in. My own bids on this auction: `amount, status (PENDING_PAYMENT, ACTIVE), txRef, checkoutUrl` (to finish paying a fee) |
 
@@ -137,7 +107,6 @@ The checks run inside a MySQL transaction holding the auction row lock, against 
 | --- | --- | --- |
 | AUCTION_NOT_STARTED | 409 | `details.startsAt` |
 | AUCTION_ENDED | 409 | Closed, cancelled, or the end time passed |
-| SELLER_CANNOT_BID | 403 | |
 | BID_OUT_OF_RANGE | 400 | `details.minBid, details.maxBid` |
 | BID_STEP_INVALID | 400 | Not a multiple of `details.bidStep` |
 | DUPLICATE_BID_AMOUNT | 409 | You already bid this amount (paid or awaiting payment) |
@@ -158,25 +127,15 @@ Bid states: `PENDING_PAYMENT` → `ACTIVE` (fee verified) or `VOID` (fee failed,
 | GET | /me/watchlist?status=active\|ended | Cards |
 | POST, DELETE | /auctions/:id/watch | |
 
-## Seller auctions
-
-| Method | Path | Notes |
-| --- | --- | --- |
-| POST | /seller/auctions | `productId, sellerPrice, marketValue?, startsAt (ISO), durationMinutes`. `sellerPrice` (at least 100 ETB) is what the seller is paid for the item, less 10% commission, whatever the winning bid. Listing must be approved. Starts at least 10 minutes ahead; 1 hour to 30 days long. Bidding terms default to the category's bid fee (or the platform's 10 ETB), bids from 0.01 ETB up to the seller price |
-| GET | /seller/auctions?status= | With seller price, bidding terms, `bidCount`, `feesCollected` and result |
-| GET | /seller/auctions/:id | After the close, plus the ranked bids (masked names). `bids` is null while bidding is open |
-| POST | /seller/auctions/:id/cancel | `reason`. Only before bidding opens |
-
 ## Admin: auctions and bids
 
 | Method | Path | Permission |
 | --- | --- | --- |
-| GET | /admin/auctions?status=PENDING_APPROVAL&q=&sellerId= | `auction:review` (pending: oldest first) |
-| GET | /admin/auctions/:id | `auction:review` |
-| POST | /admin/auctions/:id/approve | `auction:review`. If approved after the start time, the auction starts now and keeps its full length |
-| POST | /admin/auctions/:id/reject | `auction:review`; `reason` |
+| GET | /admin/auctions?status=&q= | `auction:manage` |
+| POST | /admin/auctions | `auction:manage`. `productId` (a published listing), `itemCost` (what the item costs LOW BID, at least 100 ETB; also the default highest bid), `marketValue?`, `startsAt` (ISO; now or up to a minute ago = start immediately), `durationMinutes` (1 hour to 30 days), `isFeatured?`, and optional terms `bidFee, minBid, maxBid, bidStep, minPaidBids, maxBidsPerUser`. Defaults: the category's bid fee (or the platform's 10 ETB), bids from 0.01 ETB up to the item cost. No approval step: it is SCHEDULED (or LIVE) at once |
+| GET | /admin/auctions/:id | `auction:manage`. Item cost, terms, `bidCount`, `feesCollected`, `grossTakings` (fees + winning bid) and result. Never bid amounts while bidding is open |
 | POST | /admin/auctions/:id/cancel | `auction:cancel`; `reason`. Works on live auctions; bidders and watchers are told |
-| PATCH | /admin/auctions/:id | `isFeatured`; bidding terms `bidFee, minBid, maxBid, bidStep` (ETB strings), `minPaidBids, maxBidsPerUser` (only before bidding opens) |
+| PATCH | /admin/auctions/:id | `auction:manage`. `isFeatured`; bidding terms `bidFee, minBid, maxBid, bidStep` (ETB strings), `minPaidBids, maxBidsPerUser` (only before bidding opens) |
 | GET | /admin/bids?auctionId=&userId= | `bid:monitor`. Real bidder identities, amounts, status and IP, for fraud review. Treat as confidential while auctions are open |
 
 ## Live updates (Socket.IO)
@@ -204,7 +163,7 @@ Closing:
 1. Fees still being confirmed at the end time get up to `settleWindowMinutes` (5): the close checks them with Chapa and retries every 30 seconds until they settle or the window ends. Bids still unpaid after that become `VOID`.
 2. Paid bids are ranked: unique amounts lowest first, then the rest lowest first (earliest confirmed fee first within an amount). The first bidder whose account is still active wins and pays their own amount.
 3. Fewer paid bids than `minPaidBids` → `NOT_ENOUGH_BIDS`, every fee refunded.
-4. The result gets a payment deadline (48 hours by default); the winner, the other bidders and the seller are notified, and the full ranking becomes public.
+4. The result gets a payment deadline (48 hours by default); the winner and the other bidders are notified, and the full ranking becomes public.
 
 Delayed jobs fire at the exact start and end times; a sweep every 30 seconds catches anything missed.
 
@@ -218,9 +177,8 @@ All amounts are computed by the server. The app never sends a price, and the Cha
 | GET | /payments/:txRef | Status: INITIATED, PENDING, PAID, FAILED, EXPIRED, REFUNDED, PARTIALLY_REFUNDED. While pending it re-checks Chapa (at most every 5 s), so the app can poll it after the checkout closes |
 | GET | /payments?page= | My payment history |
 | GET | /payments/:txRef/receipt?format=json\|html | Once paid. The HTML version prints or saves as PDF from the app |
-| POST | /payments/:txRef/refund-request | `reason`. Winner, within the dispute window (3 days). Puts the seller's payout on hold for admin review |
-| POST | /me/auctions/:id/confirm-received | Winner confirms they have the item; the seller's payout becomes due immediately |
-| GET | /payments/banks | Chapa's bank and wallet list (`code` for seller payout settings) |
+| POST | /payments/:txRef/refund-request | `reason`. Winner, any time before delivery and within the dispute window (3 days) after it, unless they confirmed receipt. Staff decide |
+| POST | /me/auctions/:id/confirm-received | Winner confirms the item arrived as described (closes refund requests) |
 
 ### How a payment is confirmed
 
@@ -235,9 +193,8 @@ All amounts are computed by the server. The app never sends a price, and the Cha
 4. The payment becomes PAID only if Chapa reports `success` **and** the `tx_ref`, the currency (ETB) and the exact amount match. In production it must also be a live-mode payment. Anything else is recorded as `FAILED` with `NEEDS_REVIEW: …` for an admin.
 5. Settlement runs once, inside a transaction holding the payment row lock:
    - receipt number and ledger entries
-   - the 10% commission
-   - the seller payout (due after the dispute window)
-   - notifications to buyer and seller
+   - the order joins the staff delivery list (`GET /admin/orders`)
+   - a notification to the buyer
    - a `payment:updated` socket event to the buyer
 
 Webhooks are stored and deduplicated before processing. Signed with an invalid signature → 401 and ignored. Chapa's `x-chapa-signature` (HMAC-SHA256 of the payload) and `chapa-signature` (HMAC-SHA256 of the secret) are both accepted, using `CHAPA_WEBHOOK_SECRET`.
@@ -257,16 +214,7 @@ Webhooks are stored and deduplicated before processing. Signed with an invalid s
 | Losing bidders | Bid fees are not refunded (they are the price of taking part) |
 | Checkout never completed | Marked EXPIRED 10 minutes after it lapses; still re-checked for 24 hours in case Chapa completes it late |
 
-## Seller money
-
-| Method | Path | Notes |
-| --- | --- | --- |
-| GET | /seller/earnings | `salesCount, grossSales, commission, netEarnings, paidOut, pending, onHold` |
-| GET | /seller/payouts?status= | Payouts with masked account numbers |
-
-A payout is created when the buyer's payment is confirmed, for the seller's agreed price minus the 10% commission (not the winning bid, which is usually far lower: bid fees fund the difference). If the sale is fully refunded, the payout is cancelled. It becomes due after the dispute window (3 days), or immediately when the buyer confirms receipt. Payout account details are copied at the moment of sale, so a later change cannot redirect money from a past sale.
-
-## Admin: payments, refunds, payouts
+## Admin: payments, refunds, orders
 
 | Method | Path | Permission |
 | --- | --- | --- |
@@ -278,10 +226,8 @@ A payout is created when the buyer's payment is confirmed, for the seller's agre
 | POST | /admin/refunds/:id/approve, /reject | `refund:manage`. For buyer requests; reject takes `reason` |
 | POST | /admin/refunds/:id/retry | `refund:manage`. Failed refunds, with a new reference |
 | POST | /admin/refunds/:id/mark-processed | `refund:manage`. `providerRef`; for refunds paid manually or confirmed on the Chapa dashboard |
-| GET | /admin/payouts?status=&due=true | `payout:manage` |
-| POST | /admin/payouts/:id/send | `payout:manage`. Chapa transfer (when `payout.policy.method` is CHAPA_TRANSFER). Chapa processes transfers Mon–Sat, 08:30–16:30 |
-| POST | /admin/payouts/:id/mark-paid | `payout:manage`. `reference`; for manual bank transfers |
-| POST | /admin/payouts/:id/hold, /release | `payout:manage` |
+| GET | /admin/orders?status=PAID | `order:fulfil`. Won items by status (default PAID: waiting for LOW BID to deliver), with the winner's name and phone |
+| POST | /admin/orders/:id/delivered | `order:fulfil`. `note?`. PAID → FULFILLED; tells the winner, who then has the dispute window to report a problem |
 | GET | /admin/ledger/balances | `report:view`. Per-account balances; `balanced` must always be true |
 
 Refunds go through Chapa's refund API (`POST /v1/refund/:tx_ref`, confirmed with `GET /v1/refund/:ref_id/verify`). Each refund carries our own unique reference, so a retry cannot refund twice. Set `payment.chapa.refundMode` to `MANUAL` to pay refunds yourself and record them with mark-processed.
@@ -292,10 +238,9 @@ Every money movement is a balanced double-entry group in `transactions`. Account
 - `EXTERNAL`: outside LOW BID
 - `ESCROW`
 - `PLATFORM_REVENUE`
-- `SELLER_PAYABLE`
 - `PROVIDER_FEES`: Chapa's charge, absorbed by the platform
 
-Bid fees go to platform revenue (refunds come back out of it). A sale moves the winner's cash into escrow and on to platform revenue, which then owes the seller their agreed price less commission (seller payable). Platform revenue can therefore go negative for an auction whose fees did not cover the seller price.
+Bid fees go to platform revenue (refunds come back out of it). A sale moves the winner's cash into escrow and on to platform revenue. Compare an auction's `grossTakings` (fees + winning bid) with its `itemCost` to see whether it paid for the item.
 
 ## Admin: users and settings
 
@@ -310,13 +255,13 @@ Bid fees go to platform revenue (refunds come back out of it). A sale moves the 
 | GET | /admin/settings | `settings:manage` |
 | PUT | /admin/settings/:key | `settings:manage`. `{ value: {...} }`, validated per key |
 
-Setting keys: `fees.commission`, `auction.lowestUniqueBid` (`defaultBidFeeMinor, minBidMinor, bidStepMinor, maxBidsPerUser, settleWindowMinutes, refundFeesOnCancel`), `auction.rules`, `listing.rules`, `payment.chapa`, `payout.policy`.
+Setting keys: `fees`, `auction.lowestUniqueBid` (`defaultBidFeeMinor, minBidMinor, bidStepMinor, maxBidsPerUser, settleWindowMinutes, refundFeesOnCancel`), `auction.rules`, `listing.rules`, `payment.chapa`, `orders.policy`.
 
 ## Files
 
 | Path | Notes |
 | --- | --- |
 | /media/products/... | Public product photos (local storage). Cached for a year |
-| /api/v1/files/private/:token | Seller documents via a signed 5-minute link. `no-store`, sandboxed |
+| /api/v1/files/private/:token | Private files via a signed 5-minute link. `no-store`, sandboxed |
 
 With `STORAGE_DRIVER=s3`, photo URLs point at `PUBLIC_MEDIA_BASE_URL` and document links are S3 presigned URLs.

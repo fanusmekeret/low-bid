@@ -13,7 +13,7 @@ import { issueRefreshToken, revokeAllForUser, revokeByRawToken, revokeFamily, ro
 /** @typedef {{ ip?: string, userAgent?: string }} ClientMeta */
 
 export async function loadUserProfile(userId) {
-  const user = await prisma.user.findUnique({ where: { id: BigInt(userId) }, include: { sellerProfile: true } });
+  const user = await prisma.user.findUnique({ where: { id: BigInt(userId) } });
   if (!user) throw unauthorized('AUTH_USER_NOT_FOUND', 'Account not found');
   const roles = await getUserRoleCodes(user.id);
   const permissions = await permissionsForRoles(roles);

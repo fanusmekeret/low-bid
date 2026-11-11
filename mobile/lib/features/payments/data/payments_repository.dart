@@ -26,7 +26,6 @@ class PaymentsRepository {
 
   Future<void> requestRefund(String txRef, String reason) => _api.post('/payments/$txRef/refund-request', data: {'reason': reason});
 
-  Future<List<BankModel>> banks() async => listOf((await _api.get('/payments/banks'))['data'], BankModel.fromJson);
 }
 
 final paymentsRepositoryProvider = Provider<PaymentsRepository>((ref) => PaymentsRepository(ref.watch(apiClientProvider)));

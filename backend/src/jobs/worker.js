@@ -3,7 +3,6 @@ import { Redis } from 'ioredis';
 import { env } from '../config/env.js';
 import { bootstrapSchedules, closeAuction, sendEndingSoon, startAuction, sweep } from '../modules/auctions/lifecycle.service.js';
 import { reconcilePayments } from '../modules/payments/payments.service.js';
-import { reconcilePayouts } from '../modules/payments/payouts.service.js';
 import { processRefund, reconcileRefunds } from '../modules/payments/refunds.service.js';
 import { expireUnpaidResult, scheduleResultJobs, sendPaymentReminder } from '../modules/payments/results.service.js';
 import { prisma } from '../config/prisma.js';
@@ -39,9 +38,9 @@ async function handle(job) {
     case 'refund':
       return (await processRefund(job.data.refundId)).result;
     case 'reconcile': {
-      // Pending payments, refunds and transfers: ask Chapa where each one stands.
-      const [p, r, o] = [await reconcilePayments(), await reconcileRefunds(), await reconcilePayouts()];
-      return { payments: p, refunds: r, payouts: o };
+      // Pending payments and refunds: ask Chapa where each one stands.
+      const [p, r] = [await reconcilePayments(), await reconcileRefunds()];
+      return { payments: p, refunds: r };
     }
     default:
       logger.warn({ name: job.name }, 'unknown job');

@@ -6,7 +6,7 @@ import { hasTestDb } from './helpers.js';
 
 const ETB = (n) => BigInt(Math.round(n * 100));
 
-describe.skipIf(!hasTestDb)('Chapa payments: bid fees, winner payment, refunds and payouts (MySQL + fake Chapa)', () => {
+describe.skipIf(!hasTestDb)('Chapa payments: bid fees, winner payment, delivery and refunds (MySQL + fake Chapa)', () => {
   let fake;
   let ctx;
   let request;
@@ -14,11 +14,10 @@ describe.skipIf(!hasTestDb)('Chapa payments: bid fees, winner payment, refunds a
   let lifecycle;
   let refunds;
   let results;
-  let settings;
   let signAccessToken;
   let DEMO_SPECS;
   let admin;
-  let seller;
+  let listing;
   let bidders;
   let seq = 0;
 
@@ -48,7 +47,7 @@ describe.skipIf(!hasTestDb)('Chapa payments: bid fees, winner payment, refunds a
     const endsAt = over.endsAt ?? new Date(now + 3_600_000);
     return prisma.auction.create({
       data: {
-        productId: seller.product.id, status: 'LIVE', sellerPrice: ETB(1000), bidFee: ETB(10), minBid: 1n, maxBid: ETB(1000), bidStep: 1n,
+        productId: listing.id, status: 'LIVE', itemCost: ETB(1000), bidFee: ETB(10), minBid: 1n, maxBid: ETB(1000), bidStep: 1n,
         startsAt: new Date(now - 3_600_000), endsAt, ...over,
       },
     });
@@ -88,20 +87,15 @@ describe.skipIf(!hasTestDb)('Chapa payments: bid fees, winner payment, refunds a
     lifecycle = await import('../../src/modules/auctions/lifecycle.service.js');
     refunds = await import('../../src/modules/payments/refunds.service.js');
     results = await import('../../src/modules/payments/results.service.js');
-    settings = await import('../../src/modules/settings/settings.service.js');
     ({ signAccessToken } = await import('../../src/modules/auth/tokens.js'));
     ({ DEMO_SPECS } = await import('../../src/db/demo/demo-specs.js'));
 
     [admin] = await makeUsers(1, ['buyer', 'bidder', 'super_admin']);
-    const [s] = await makeUsers(1, ['buyer', 'bidder', 'seller']);
-    const profile = await prisma.sellerProfile.create({
-      data: { userId: s.user.id, businessName: 'Bole Mobile', city: 'Addis Ababa', status: 'APPROVED', payoutMethod: 'BANK_TRANSFER', payoutBankCode: '946', payoutAccountName: 'Bole Mobile PLC', payoutAccountNo: '1000123456789' },
-    });
+    const house = await (await import('../../src/modules/house/house.service.js')).getHouseSeller();
     const category = await prisma.category.findUnique({ where: { slug: 'vehicles' } });
-    const product = await prisma.product.create({
-      data: { sellerId: profile.id, categoryId: category.id, title: 'Toyota Vitz 2014', description: 'Well kept, one owner, full service history.', condition: 'USED_GOOD', location: 'Addis Ababa', status: 'APPROVED', attributes: DEMO_SPECS['iphone-13'] },
+    listing = await prisma.product.create({
+      data: { sellerId: house.id, categoryId: category.id, title: 'Toyota Vitz 2014', description: 'Well kept, one owner, full service history.', condition: 'USED_GOOD', location: 'Addis Ababa', status: 'APPROVED', attributes: DEMO_SPECS['iphone-13'] },
     });
-    seller = { ...s, profile, product };
     bidders = await makeUsers(4);
   });
 
@@ -166,9 +160,9 @@ describe.skipIf(!hasTestDb)('Chapa payments: bid fees, winner payment, refunds a
     });
   });
 
-  // ─────────────── Winner payment and payout ───────────────
+  // ─────────────── Winner payment and delivery ───────────────
 
-  describe('winner payment and payout', () => {
+  describe('winner payment and delivery', () => {
     let a;
     let winnerRef;
     beforeAll(async () => {
@@ -188,17 +182,15 @@ describe.skipIf(!hasTestDb)('Chapa payments: bid fees, winner payment, refunds a
       winnerRef = res.body.data.txRef;
     });
 
-    it('settles through the callback; the seller is owed their price less 10%', async () => {
+    it('settles through the callback; all of it is LOW BID revenue', async () => {
       fake.pay(winnerRef);
       const cb = await api().get(`/api/v1/payments/chapa/callback?trx_ref=${winnerRef}&ref_id=x&status=success`);
       assert.equal(cb.body.data.status, 'PAID');
       const result = await prisma.auctionResult.findUnique({ where: { auctionId: a.id } });
       assert.equal(result.status, 'PAID');
-      const payout = await prisma.sellerPayout.findUnique({ where: { resultId: result.id } });
-      assert.equal(payout.netAmount, ETB(900));
-      assert.equal(payout.commission, ETB(100));
-      assert.ok(await prisma.notification.findFirst({ where: { userId: seller.user.id, type: 'SALE_PAID' } }));
-      await assertLedgerBalanced();
+      assert.ok(await prisma.notification.findFirst({ where: { userId: bidders[1].user.id, type: 'PAYMENT_SUCCESS' } }));
+      const balances = await assertLedgerBalanced();
+      assert.ok(!('SELLER_PAYABLE' in balances), 'no seller payouts');
     });
 
     it('issues a receipt and shows the return page', async () => {
@@ -213,19 +205,23 @@ describe.skipIf(!hasTestDb)('Chapa payments: bid fees, winner payment, refunds a
       assert.match(page.text, /lowbid:\/\/payments\?tx_ref=/);
     });
 
-    it('pays the seller after the buyer confirms receipt', async () => {
+    it('shows the paid order to staff, who mark it delivered', async () => {
       const result = await prisma.auctionResult.findUnique({ where: { auctionId: a.id } });
-      const payout = await prisma.sellerPayout.findUnique({ where: { resultId: result.id } });
-      await settings.updateSetting('payout.policy', { disputeWindowDays: 3, method: 'CHAPA_TRANSFER' }, { actorId: admin.user.id });
-      assert.equal((await api().post(`/api/v1/admin/payouts/${payout.id}/send`).set(auth(admin.token))).body.error.code, 'PAYOUT_NOT_DUE');
+      const orders = await api().get('/api/v1/admin/orders').set(auth(admin.token));
+      const order = orders.body.data.find((o) => o.id === String(result.id));
+      assert.ok(order, 'paid orders wait for delivery');
+      assert.equal(order.winner.phone, bidders[1].user.phone);
+      assert.equal((await api().get('/api/v1/admin/orders').set(auth(bidders[1].token))).status, 403);
+      const done = await api().post(`/api/v1/admin/orders/${result.id}/delivered`).set(auth(admin.token)).send({ note: 'Handed over at the Bole office' });
+      assert.equal(done.body.data.status, 'FULFILLED');
+      assert.ok(await prisma.notification.findFirst({ where: { userId: bidders[1].user.id, type: 'ITEM_DELIVERED' } }));
+    });
+
+    it('lets the winner confirm receipt, which closes refund requests', async () => {
       const confirm = await api().post(`/api/v1/me/auctions/${a.id}/confirm-received`).set(auth(bidders[1].token));
       assert.equal(confirm.body.data.status, 'FULFILLED');
-      const sent = await api().post(`/api/v1/admin/payouts/${payout.id}/send`).set(auth(admin.token));
-      assert.equal(sent.status, 200, JSON.stringify(sent.body));
-      assert.equal(fake.transfers.get(payout.reference).amount, '900.00');
-      const balances = await assertLedgerBalanced();
-      assert.equal(balances.SELLER_PAYABLE?.etb ?? '0.00', '0.00');
-      await settings.updateSetting('payout.policy', { disputeWindowDays: 3, method: 'MANUAL_BANK_TRANSFER' }, { actorId: admin.user.id });
+      const req = await api().post(`/api/v1/payments/${winnerRef}/refund-request`).set(auth(bidders[1].token)).send({ reason: 'Changed my mind' });
+      assert.equal(req.body.error.code, 'ALREADY_CONFIRMED');
     });
   });
 
@@ -291,7 +287,7 @@ describe.skipIf(!hasTestDb)('Chapa payments: bid fees, winner payment, refunds a
       await assertLedgerBalanced();
     });
 
-    it('holds the payout, refunds after approval, and cancels the seller payout', async () => {
+    it('takes a refund request after delivery and refunds after approval', async () => {
       const a = await auction();
       await paidBid(a.id, bidders[2], '9');
       await closeNow(a.id);
@@ -300,14 +296,12 @@ describe.skipIf(!hasTestDb)('Chapa payments: bid fees, winner payment, refunds a
       await sendWebhook(fake.webhook(co.body.data.txRef));
       const req = await api().post(`/api/v1/payments/${co.body.data.txRef}/refund-request`).set(auth(bidders[2].token)).send({ reason: 'Item not as described' });
       assert.equal(req.status, 201, JSON.stringify(req.body));
-      const result = await prisma.auctionResult.findUnique({ where: { auctionId: a.id } });
-      assert.equal((await prisma.sellerPayout.findUnique({ where: { resultId: result.id } })).status, 'ON_HOLD');
+      assert.equal((await prisma.auctionResult.findUnique({ where: { auctionId: a.id } })).status, 'DISPUTED');
       await api().post(`/api/v1/admin/refunds/${req.body.data.id}/approve`).set(auth(admin.token));
       await refunds.reconcileRefunds();
       fake.completeRefunds();
       await refunds.reconcileRefunds();
       assert.equal((await prisma.auctionResult.findUnique({ where: { auctionId: a.id } })).status, 'CANCELLED');
-      assert.equal((await prisma.sellerPayout.findUnique({ where: { resultId: result.id } })).status, 'CANCELLED');
       await assertLedgerBalanced();
     });
   });

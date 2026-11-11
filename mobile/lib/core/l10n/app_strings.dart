@@ -20,10 +20,6 @@ class S {
   String get tagline => _t('tagline');
   String get retry => _t('retry');
   String get all => _t('all');
-  String get camera => _t('camera');
-  String get gallery => _t('gallery');
-  String get tinInvalid => _t('tinInvalid');
-  String get conditionLabel => _t('conditionLabel');
   String get cancel => _t('cancel');
   String get save => _t('save');
   String get continueLabel => _t('continueLabel');
@@ -117,7 +113,6 @@ class S {
   String get noSale => _t('noSale');
   String get watch => _t('watch');
   String get watching => _t('watching');
-  String get yourListing => _t('yourListing');
   String get you => _t('you');
   String get startsSoon => _t('startsSoon');
 
@@ -165,8 +160,6 @@ class S {
   String get phoneVerified => _t('phoneVerified');
   String get phoneNotVerified => _t('phoneNotVerified');
   String get verifyNow => _t('verifyNow');
-  String get becomeSeller => _t('becomeSeller');
-  String get sellerDashboard => _t('sellerDashboard');
   String get guestTitle => _t('guestTitle');
   String get guestBody => _t('guestBody');
   String get signOutConfirm => _t('signOutConfirm');
@@ -195,6 +188,7 @@ class S {
   String bidFeeEach(String amount) => _t('bidFeeEach').replaceAll('{amount}', amount);
   String bidRange(String min, String max) => _t('bidRange').replaceAll('{min}', min).replaceAll('{max}', max);
   String get itemValue => _t('itemValue');
+  String get soldBy => _t('soldBy');
   String get allowedBids => _t('allowedBids');
   String get yourBids => _t('yourBids');
   String yourBidsCount(int n) => n == 1 ? _t('yourBidsOne') : _t('yourBidsMany').replaceAll('{n}', '$n');
@@ -211,10 +205,6 @@ class S {
   String get bidsRevealedAtEnd => _t('bidsRevealedAtEnd');
   String get notEnoughBids => _t('notEnoughBids');
   String wonBy(String alias) => _t('wonBy').replaceAll('{alias}', alias);
-  String get yourPrice => _t('yourPrice');
-  String get yourPriceHint => _t('yourPriceHint');
-  String get retailValue => _t('retailValue');
-  String get feesCollected => _t('feesCollected');
   String get placeAnotherBid => _t('placeAnotherBid');
   String get bidLimitReached => _t('bidLimitReached');
   String get youWon => _t('youWon');
@@ -224,69 +214,16 @@ class S {
   String get reference => _t('reference');
 
   // ── Seller ──
-  String get sellerApply => _t('sellerApply');
-  String get sellerApplyBody => _t('sellerApplyBody');
   String get businessName => _t('businessName');
-  String get businessType => _t('businessType');
-  String get individual => _t('individual');
-  String get company => _t('company');
-  String get tin => _t('tin');
   String get city => _t('city');
-  String get address => _t('address');
-  String get bio => _t('bio');
-  String get payoutMethod => _t('payoutMethod');
-  String get bankTransfer => _t('bankTransfer');
-  String get telebirr => _t('telebirr');
-  String get bank => _t('bank');
-  String get accountName => _t('accountName');
-  String get accountNumber => _t('accountNumber');
-  String get telebirrNumber => _t('telebirrNumber');
-  String get submitApplication => _t('submitApplication');
-  String sellerStatus(String code) => _t('sellerStatus.$code');
-  String sellerStatusBody(String code) => _t('sellerStatusBody.$code');
-  String get missingDocuments => _t('missingDocuments');
-  String missing(String code) => _t('missing.$code');
-  String get documents => _t('documents');
-  String get uploadDocument => _t('uploadDocument');
-  String get documentType => _t('documentType');
-  String document(String code) => _t('doc.$code');
-  String docStatus(String code) => _t('docStatus.$code');
-  String get myListings => _t('myListings');
-  String get newListing => _t('newListing');
-  String get editListing => _t('editListing');
   String get title => _t('title');
   String get category => _t('category');
   String get location => _t('location');
   String get highlights => _t('highlights');
-  String get highlightsHint => _t('highlightsHint');
-  String get specGroups => _t('specGroups');
-  String get addGroup => _t('addGroup');
-  String get addRow => _t('addRow');
-  String get groupName => _t('groupName');
   String get label => _t('label');
   String get value => _t('value');
-  String get photos => _t('photos');
-  String get addPhotos => _t('addPhotos');
-  String get photosAfterSave => _t('photosAfterSave');
-  String get saveDraft => _t('saveDraft');
-  String get submitForReview => _t('submitForReview');
-  String listingStatus(String code) => _t('listingStatus.$code');
-  String get scheduleAuction => _t('scheduleAuction');
   String get startsAt => _t('startsAt');
   String get duration => _t('duration');
-  String get createAuction => _t('createAuction');
-  String get auctionSubmitted => _t('auctionSubmitted');
-  String get myAuctions => _t('myAuctions');
-  String get earnings => _t('earnings');
-  String get grossSales => _t('grossSales');
-  String get commission => _t('commission');
-  String get netEarnings => _t('netEarnings');
-  String get paidOut => _t('paidOut');
-  String get pendingPayout => _t('pendingPayout');
-  String get onHold => _t('onHold');
-  String get payouts => _t('payouts');
-  String auctionStatus(String code) => _t('auctionStatus.$code');
-  String rejectedBecause(String reason) => _t('rejectedBecause').replaceAll('{reason}', reason);
   String hours(int n) => _t('hours').replaceAll('{n}', '$n');
   String days(int n) => _t('days').replaceAll('{n}', '$n');
 
@@ -306,10 +243,6 @@ class S {
     'tagline': 'Bid smart. Win big.',
     'retry': 'Retry',
     'all': 'All',
-    'camera': 'Camera',
-    'gallery': 'Gallery',
-    'tinInvalid': 'TIN is 10 digits',
-    'conditionLabel': 'Condition',
     'cancel': 'Cancel',
     'save': 'Save',
     'continueLabel': 'Continue',
@@ -402,6 +335,7 @@ class S {
     'bidFeeEach': '{amount} per bid',
     'bidRange': 'Bids from {min} to {max}',
     'itemValue': 'Item value',
+    'soldBy': 'Sold and delivered by',
     'allowedBids': 'Allowed bids',
     'yourBids': 'Your bids',
     'yourBidsOne': 'You have 1 bid',
@@ -419,10 +353,6 @@ class S {
     'bidsRevealedAtEnd': 'All bids are revealed when the auction ends',
     'notEnoughBids': 'Not enough bids. Every bid fee is refunded.',
     'wonBy': 'Won by {alias}',
-    'yourPrice': 'Your price',
-    'yourPriceHint': 'What you receive for the item (less 10% commission), whatever the winning bid',
-    'retailValue': 'Retail value (optional)',
-    'feesCollected': 'Fees collected',
     'placeAnotherBid': 'Place another bid',
     'bidLimitReached': 'You have reached the bid limit for this auction',
     'youWon': 'You won!',
@@ -438,7 +368,6 @@ class S {
     'noSale': 'Ended without a sale',
     'watch': 'Watch',
     'watching': 'Watching',
-    'yourListing': 'This is your listing',
     'you': 'You',
     'startsSoon': 'Bidding opens soon',
     'yourBid': 'Your bid',
@@ -447,8 +376,6 @@ class S {
     'amountInvalid': 'Enter an amount in birr, e.g. 165000',
     'active': 'Active',
     'ended': 'Ended',
-    'myStatus.LEADING': 'Leading',
-    'myStatus.OUTBID': 'Outbid',
     'myStatus.WON': 'Won',
     'myStatus.LOST': 'Lost',
     'myStatus.CANCELLED': 'Cancelled',
@@ -489,8 +416,6 @@ class S {
     'phoneVerified': 'Phone verified',
     'phoneNotVerified': 'Phone not verified',
     'verifyNow': 'Verify now',
-    'becomeSeller': 'Sell on LOW BID',
-    'sellerDashboard': 'Seller dashboard',
     'guestTitle': 'Welcome to LOW BID',
     'guestBody': 'Sign in to bid, watch auctions and see your wins.',
     'signOutConfirm': 'Sign out of LOW BID on this phone?',
@@ -508,7 +433,6 @@ class S {
     'totalPaid': 'Total paid',
     'paymentHistory': 'Payment history',
     'noPayments': 'No payments yet',
-    'purpose.BID_DEPOSIT': 'Bid deposit',
     'purpose.WINNING_BID': 'Winning bid',
     'paymentStatus.INITIATED': 'Starting',
     'paymentStatus.PENDING': 'Pending',
@@ -519,92 +443,16 @@ class S {
     'paymentStatus.PARTIALLY_REFUNDED': 'Partly refunded',
     'paidWith': 'Paid with',
     'reference': 'Reference',
-    'sellerApply': 'Become a seller',
-    'sellerApplyBody': 'Tell us about your business. After we check your ID, you can list items.',
     'businessName': 'Business or display name',
-    'businessType': 'You are selling as',
-    'individual': 'Individual',
-    'company': 'Company',
-    'tin': 'TIN (10 digits)',
     'city': 'City',
-    'address': 'Address',
-    'bio': 'About you',
-    'payoutMethod': 'How you get paid',
-    'bankTransfer': 'Bank account',
-    'telebirr': 'telebirr',
-    'bank': 'Bank',
-    'accountName': 'Account holder name',
-    'accountNumber': 'Account number',
-    'telebirrNumber': 'telebirr phone number',
-    'submitApplication': 'Submit application',
-    'sellerStatus.PENDING': 'Application under review',
-    'sellerStatus.APPROVED': 'Approved seller',
-    'sellerStatus.REJECTED': 'Application not approved',
-    'sellerStatus.SUSPENDED': 'Seller account suspended',
-    'sellerStatusBody.PENDING': 'We will review your documents shortly.',
-    'sellerStatusBody.APPROVED': 'You can list items and schedule auctions.',
-    'sellerStatusBody.REJECTED': 'Update your details or documents and apply again.',
-    'sellerStatusBody.SUSPENDED': 'Contact LOW BID support.',
-    'missingDocuments': 'Still needed',
-    'missing.IDENTITY_DOCUMENT': 'An ID: Fayda, kebele ID, passport or driving licence',
-    'missing.TRADE_LICENSE': 'Trade licence',
-    'missing.TIN_NUMBER': 'TIN number',
-    'documents': 'Verification documents',
-    'uploadDocument': 'Upload document',
-    'documentType': 'Document type',
-    'doc.FAYDA_ID': 'Fayda ID',
-    'doc.KEBELE_ID': 'Kebele ID',
-    'doc.PASSPORT': 'Passport',
-    'doc.DRIVING_LICENSE': 'Driving licence',
-    'doc.TRADE_LICENSE': 'Trade licence',
-    'doc.TIN_CERTIFICATE': 'TIN certificate',
-    'docStatus.PENDING': 'In review',
-    'docStatus.APPROVED': 'Approved',
-    'docStatus.REJECTED': 'Rejected',
-    'myListings': 'My listings',
-    'newListing': 'New listing',
-    'editListing': 'Edit listing',
     'title': 'Title',
     'category': 'Category',
     'location': 'Location',
     'highlights': 'Card highlights',
-    'highlightsHint': 'Up to 3 short specs shown on the auction card, e.g. 256GB. No prices.',
-    'specGroups': 'Specifications',
-    'addGroup': 'Add section',
-    'addRow': 'Add row',
-    'groupName': 'Section, e.g. Display',
     'label': 'Label',
     'value': 'Value',
-    'photos': 'Photos',
-    'addPhotos': 'Add photos',
-    'photosAfterSave': 'Save the draft first, then add photos.',
-    'saveDraft': 'Save',
-    'submitForReview': 'Submit for review',
-    'listingStatus.DRAFT': 'Draft',
-    'listingStatus.PENDING_REVIEW': 'In review',
-    'listingStatus.APPROVED': 'Approved',
-    'listingStatus.REJECTED': 'Needs changes',
-    'listingStatus.ARCHIVED': 'Archived',
-    'scheduleAuction': 'Schedule auction',
     'startsAt': 'Starts',
     'duration': 'Duration',
-    'createAuction': 'Submit auction for approval',
-    'auctionSubmitted': 'Auction submitted. We will approve it before it starts.',
-    'myAuctions': 'My auctions',
-    'earnings': 'Earnings',
-    'grossSales': 'Sales',
-    'commission': 'LOW BID fee (10%)',
-    'netEarnings': 'Your earnings',
-    'paidOut': 'Paid out',
-    'pendingPayout': 'Coming',
-    'onHold': 'On hold',
-    'payouts': 'Payouts',
-    'auctionStatus.PENDING_APPROVAL': 'Awaiting approval',
-    'auctionStatus.SCHEDULED': 'Scheduled',
-    'auctionStatus.LIVE': 'Live',
-    'auctionStatus.CLOSED': 'Ended',
-    'auctionStatus.CANCELLED': 'Cancelled',
-    'rejectedBecause': 'Reason: {reason}',
     'hours': '{n} h',
     'days': '{n} days',
     'error.NETWORK_ERROR': 'No internet connection. Check your connection and try again.',
@@ -618,22 +466,12 @@ class S {
     'error.PHONE_NOT_VERIFIED': 'Verify your phone number first',
     'error.AUCTION_ENDED': 'This auction has ended',
     'error.AUCTION_NOT_STARTED': 'Bidding has not started yet',
-    'error.SELLER_CANNOT_BID': 'You cannot bid on your own item',
-    'error.ALREADY_LEADING': 'You already have the highest bid',
-    'error.DEPOSIT_REQUIRED': 'Pay the refundable deposit to bid',
-    'error.BID_TOO_LOW': 'Someone bid higher. Raise your bid.',
-    'error.BID_TOO_HIGH': 'That is far above the minimum. Check the amount.',
     'error.BIDDING_BLOCKED': 'Bidding is blocked after unpaid wins. Contact support.',
     'error.RATE_LIMITED': 'Too fast. Wait a moment and try again.',
     'error.PAYMENT_INIT_FAILED': 'The payment could not start. Try again.',
     'error.PAYMENT_PROVIDER_UNAVAILABLE': 'Payments are unavailable right now. Try again soon.',
     'error.PAYMENT_DEADLINE_PASSED': 'The payment deadline has passed',
     'error.ALREADY_PAID': 'You have already paid for this item',
-    'error.DEPOSIT_ALREADY_PAID': 'Your deposit is already paid',
-    'error.PRODUCT_LOCKED': 'This listing has an auction in progress and cannot change',
-    'error.IMAGE_TOO_SMALL': 'Photos must be at least 400 pixels on the shortest side',
-    'error.IMAGE_TYPE_NOT_ALLOWED': 'Use JPEG or PNG photos',
-    'error.FILE_TOO_LARGE': 'A file is too large (8 MB maximum)',
   };
 
   // ───────────────────────────── Amharic ─────────────────────────────
@@ -642,10 +480,6 @@ class S {
     'tagline': 'በብልሃት ይጫረቱ፣ በብዛት ያሸንፉ።',
     'retry': 'እንደገና ሞክር',
     'all': 'ሁሉም',
-    'camera': 'ካሜራ',
-    'gallery': 'የፎቶ ማህደር',
-    'tinInvalid': 'የግብር ከፋይ መለያ ቁጥር 10 አሃዝ ነው',
-    'conditionLabel': 'ሁኔታ',
     'cancel': 'ሰርዝ',
     'save': 'አስቀምጥ',
     'continueLabel': 'ቀጥል',
@@ -738,6 +572,7 @@ class S {
     'bidFeeEach': 'በአንድ ጨረታ {amount}',
     'bidRange': 'ጨረታ ከ{min} እስከ {max}',
     'itemValue': 'የዕቃው ዋጋ',
+    'soldBy': 'ሻጭና አቅራቢ',
     'allowedBids': 'የሚፈቀዱ ጨረታዎች',
     'yourBids': 'የእርስዎ ጨረታዎች',
     'yourBidsOne': '1 ጨረታ አለዎት',
@@ -755,10 +590,6 @@ class S {
     'bidsRevealedAtEnd': 'ሁሉም ጨረታዎች ጨረታው ሲያበቃ ይገለጣሉ',
     'notEnoughBids': 'በቂ ጨረታ አልነበረም። ሁሉም የጨረታ ክፍያዎች ይመለሳሉ።',
     'wonBy': 'አሸናፊ፦ {alias}',
-    'yourPrice': 'የእርስዎ ዋጋ',
-    'yourPriceHint': 'ያሸነፈው ጨረታ ምንም ይሁን ለዕቃው የሚቀበሉት (10% ኮሚሽን ተቀንሶ)',
-    'retailValue': 'የገበያ ዋጋ (አማራጭ)',
-    'feesCollected': 'የተሰበሰበ ክፍያ',
     'placeAnotherBid': 'ሌላ ጨረታ ያስገቡ',
     'bidLimitReached': 'ለዚህ ጨረታ የሚፈቀደው ብዛት ላይ ደርሰዋል',
     'youWon': 'አሸንፈዋል!',
@@ -774,7 +605,6 @@ class S {
     'noSale': 'ያለ ሽያጭ አብቅቷል',
     'watch': 'ተከታተል',
     'watching': 'እየተከታተሉ ነው',
-    'yourListing': 'ይህ የእርስዎ ዕቃ ነው',
     'you': 'እርስዎ',
     'startsSoon': 'ጨረታው በቅርቡ ይከፈታል',
     'yourBid': 'የእርስዎ ጨረታ',
@@ -783,8 +613,6 @@ class S {
     'amountInvalid': 'መጠኑን በብር ያስገቡ፤ ለምሳሌ 165000',
     'active': 'ንቁ',
     'ended': 'ያበቁ',
-    'myStatus.LEADING': 'እየመሩ ነው',
-    'myStatus.OUTBID': 'ተበልጠዋል',
     'myStatus.WON': 'አሸንፈዋል',
     'myStatus.LOST': 'አላሸነፉም',
     'myStatus.CANCELLED': 'ተሰርዟል',
@@ -825,8 +653,6 @@ class S {
     'phoneVerified': 'ስልክ ተረጋግጧል',
     'phoneNotVerified': 'ስልክ አልተረጋገጠም',
     'verifyNow': 'አሁን አረጋግጥ',
-    'becomeSeller': 'በLOW BID ላይ ይሽጡ',
-    'sellerDashboard': 'የሻጭ ዳሽቦርድ',
     'guestTitle': 'እንኳን ወደ LOW BID በደህና መጡ',
     'guestBody': 'ለመጫረት፣ ጨረታዎችን ለመከታተል እና ያሸነፉትን ለማየት ይግቡ።',
     'signOutConfirm': 'ከዚህ ስልክ ይውጡ?',
@@ -844,7 +670,6 @@ class S {
     'totalPaid': 'ጠቅላላ የተከፈለ',
     'paymentHistory': 'የክፍያ ታሪክ',
     'noPayments': 'እስካሁን ክፍያ የለም',
-    'purpose.BID_DEPOSIT': 'የጨረታ ቅድመ ክፍያ',
     'purpose.WINNING_BID': 'ያሸነፉት ጨረታ',
     'paymentStatus.INITIATED': 'በመጀመር ላይ',
     'paymentStatus.PENDING': 'በመጠባበቅ ላይ',
@@ -855,92 +680,16 @@ class S {
     'paymentStatus.PARTIALLY_REFUNDED': 'በከፊል ተመልሷል',
     'paidWith': 'የተከፈለው በ',
     'reference': 'መለያ ቁጥር',
-    'sellerApply': 'ሻጭ ይሁኑ',
-    'sellerApplyBody': 'ስለ ንግድዎ ይንገሩን። መታወቂያዎን ካረጋገጥን በኋላ ዕቃዎችን ማቅረብ ይችላሉ።',
     'businessName': 'የንግድ ወይም የሚታይ ስም',
-    'businessType': 'የሚሸጡት እንደ',
-    'individual': 'ግለሰብ',
-    'company': 'ድርጅት',
-    'tin': 'የግብር ከፋይ መለያ ቁጥር (10 አሃዝ)',
     'city': 'ከተማ',
-    'address': 'አድራሻ',
-    'bio': 'ስለ እርስዎ',
-    'payoutMethod': 'ክፍያ የሚቀበሉበት',
-    'bankTransfer': 'የባንክ ሂሳብ',
-    'telebirr': 'ቴሌብር',
-    'bank': 'ባንክ',
-    'accountName': 'የሂሳብ ባለቤት ስም',
-    'accountNumber': 'የሂሳብ ቁጥር',
-    'telebirrNumber': 'የቴሌብር ስልክ ቁጥር',
-    'submitApplication': 'ማመልከቻ አስገባ',
-    'sellerStatus.PENDING': 'ማመልከቻዎ በግምገማ ላይ ነው',
-    'sellerStatus.APPROVED': 'የጸደቀ ሻጭ',
-    'sellerStatus.REJECTED': 'ማመልከቻዎ አልጸደቀም',
-    'sellerStatus.SUSPENDED': 'የሻጭ መለያዎ ታግዷል',
-    'sellerStatusBody.PENDING': 'ሰነዶችዎን በቅርቡ እንገመግማለን።',
-    'sellerStatusBody.APPROVED': 'ዕቃዎችን ማቅረብና ጨረታ መወሰን ይችላሉ።',
-    'sellerStatusBody.REJECTED': 'መረጃዎን ወይም ሰነዶችዎን አስተካክለው እንደገና ያመልክቱ።',
-    'sellerStatusBody.SUSPENDED': 'የLOW BID ድጋፍ ሰጪን ያግኙ።',
-    'missingDocuments': 'ገና የሚያስፈልጉ',
-    'missing.IDENTITY_DOCUMENT': 'መታወቂያ፦ ፋይዳ፣ የቀበሌ፣ ፓስፖርት ወይም መንጃ ፈቃድ',
-    'missing.TRADE_LICENSE': 'የንግድ ፈቃድ',
-    'missing.TIN_NUMBER': 'የግብር ከፋይ መለያ ቁጥር',
-    'documents': 'የማረጋገጫ ሰነዶች',
-    'uploadDocument': 'ሰነድ ጫን',
-    'documentType': 'የሰነድ ዓይነት',
-    'doc.FAYDA_ID': 'ፋይዳ መታወቂያ',
-    'doc.KEBELE_ID': 'የቀበሌ መታወቂያ',
-    'doc.PASSPORT': 'ፓስፖርት',
-    'doc.DRIVING_LICENSE': 'መንጃ ፈቃድ',
-    'doc.TRADE_LICENSE': 'የንግድ ፈቃድ',
-    'doc.TIN_CERTIFICATE': 'የግብር ከፋይ ምስክር ወረቀት',
-    'docStatus.PENDING': 'በግምገማ ላይ',
-    'docStatus.APPROVED': 'ጸድቋል',
-    'docStatus.REJECTED': 'ውድቅ ተደርጓል',
-    'myListings': 'የእኔ ዕቃዎች',
-    'newListing': 'አዲስ ዕቃ',
-    'editListing': 'ዕቃ አስተካክል',
     'title': 'ርዕስ',
     'category': 'ምድብ',
     'location': 'አካባቢ',
     'highlights': 'በካርዱ ላይ የሚታዩ',
-    'highlightsHint': 'በጨረታ ካርዱ ላይ የሚታዩ እስከ 3 አጫጭር መግለጫዎች፤ ለምሳሌ 256GB። ዋጋ አይጻፍም።',
-    'specGroups': 'ዝርዝር መግለጫ',
-    'addGroup': 'ክፍል ጨምር',
-    'addRow': 'መስመር ጨምር',
-    'groupName': 'ክፍል፣ ለምሳሌ ስክሪን',
     'label': 'መለያ',
     'value': 'ዋጋ/መረጃ',
-    'photos': 'ፎቶዎች',
-    'addPhotos': 'ፎቶ ጨምር',
-    'photosAfterSave': 'መጀመሪያ ረቂቁን ያስቀምጡ፣ ከዚያ ፎቶ ይጨምሩ።',
-    'saveDraft': 'አስቀምጥ',
-    'submitForReview': 'ለግምገማ አስገባ',
-    'listingStatus.DRAFT': 'ረቂቅ',
-    'listingStatus.PENDING_REVIEW': 'በግምገማ ላይ',
-    'listingStatus.APPROVED': 'ጸድቋል',
-    'listingStatus.REJECTED': 'ማስተካከያ ያስፈልጋል',
-    'listingStatus.ARCHIVED': 'ተቀምጧል',
-    'scheduleAuction': 'ጨረታ ይወስኑ',
     'startsAt': 'የሚጀምርበት',
     'duration': 'የሚቆይበት ጊዜ',
-    'createAuction': 'ጨረታውን ለማጽደቅ አስገባ',
-    'auctionSubmitted': 'ጨረታው ገብቷል። ከመጀመሩ በፊት እናጸድቀዋለን።',
-    'myAuctions': 'የእኔ ጨረታዎች',
-    'earnings': 'ገቢ',
-    'grossSales': 'ሽያጭ',
-    'commission': 'የLOW BID ክፍያ (10%)',
-    'netEarnings': 'የእርስዎ ገቢ',
-    'paidOut': 'የተከፈለዎት',
-    'pendingPayout': 'የሚመጣ',
-    'onHold': 'የተያዘ',
-    'payouts': 'ክፍያዎች ለእርስዎ',
-    'auctionStatus.PENDING_APPROVAL': 'ማጽደቅን በመጠባበቅ ላይ',
-    'auctionStatus.SCHEDULED': 'ተይዟል',
-    'auctionStatus.LIVE': 'በቀጥታ',
-    'auctionStatus.CLOSED': 'አብቅቷል',
-    'auctionStatus.CANCELLED': 'ተሰርዟል',
-    'rejectedBecause': 'ምክንያት፦ {reason}',
     'hours': '{n} ሰዓት',
     'days': '{n} ቀናት',
     'error.NETWORK_ERROR': 'የኢንተርኔት ግንኙነት የለም። ግንኙነትዎን ፈትሸው እንደገና ይሞክሩ።',
@@ -954,21 +703,11 @@ class S {
     'error.PHONE_NOT_VERIFIED': 'መጀመሪያ ስልክ ቁጥርዎን ያረጋግጡ',
     'error.AUCTION_ENDED': 'ይህ ጨረታ አብቅቷል',
     'error.AUCTION_NOT_STARTED': 'ጨረታው ገና አልተጀመረም',
-    'error.SELLER_CANNOT_BID': 'በራስዎ ዕቃ ላይ መጫረት አይችሉም',
-    'error.ALREADY_LEADING': 'ከፍተኛው ጨረታ አስቀድሞ የእርስዎ ነው',
-    'error.DEPOSIT_REQUIRED': 'ለመጫረት ተመላሽ የሚሆን ቅድመ ክፍያ ይክፈሉ',
-    'error.BID_TOO_LOW': 'ሌላ ሰው ከፍ አድርጎ ተጫርቷል። ጨረታዎን ከፍ ያድርጉ።',
-    'error.BID_TOO_HIGH': 'መጠኑ ከሚያስፈልገው በጣም ይበልጣል። ያረጋግጡ።',
     'error.BIDDING_BLOCKED': 'ያልተከፈሉ ድሎች ስላሉ መጫረት ታግዷል። ድጋፍ ሰጪን ያግኙ።',
     'error.RATE_LIMITED': 'በጣም ፈጥነዋል። ትንሽ ቆይተው ይሞክሩ።',
     'error.PAYMENT_INIT_FAILED': 'ክፍያው መጀመር አልቻለም። እንደገና ይሞክሩ።',
     'error.PAYMENT_PROVIDER_UNAVAILABLE': 'ክፍያ አሁን አይሰራም። ትንሽ ቆይተው ይሞክሩ።',
     'error.PAYMENT_DEADLINE_PASSED': 'የክፍያ ጊዜው አልፏል',
     'error.ALREADY_PAID': 'ለዚህ ዕቃ አስቀድመው ከፍለዋል',
-    'error.DEPOSIT_ALREADY_PAID': 'ቅድመ ክፍያዎ አስቀድሞ ተከፍሏል',
-    'error.PRODUCT_LOCKED': 'ይህ ዕቃ በሂደት ላይ ያለ ጨረታ ስላለው መቀየር አይቻልም',
-    'error.IMAGE_TOO_SMALL': 'ፎቶዎች በአጭሩ ጎን ቢያንስ 400 ፒክሰል መሆን አለባቸው',
-    'error.IMAGE_TYPE_NOT_ALLOWED': 'JPEG ወይም PNG ፎቶ ይጠቀሙ',
-    'error.FILE_TOO_LARGE': 'ፋይሉ በጣም ትልቅ ነው (ቢበዛ 8 MB)',
   };
 }

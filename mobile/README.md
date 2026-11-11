@@ -1,6 +1,6 @@
 # LOW BID mobile app (Flutter)
 
-Buyer and seller app for Android and iOS, in English and Amharic, for LOW BID's **lowest unique bid** auctions: each bid is a secret amount plus a bid fee paid through Chapa, and the lowest amount that only one person bid wins.
+Bidder app for Android and iOS, in English and Amharic, for LOW BID's **lowest unique bid** auctions (LOW BID lists, prices and delivers every item; there is no seller side): each bid is a secret amount plus a bid fee paid through Chapa, and the lowest amount that only one person bid wins.
 
 - **Stack:** Riverpod, go_router, Dio, Socket.IO.
 - **Countdowns:** driven by the server clock.
@@ -95,7 +95,7 @@ The tests cover:
 - **API errors:** envelope, field errors, network failures.
 - **Countdown:** phases, urgency, extension flash.
 
-To try it with data, seed the backend (`npm run db:seed && npm run db:seed:demo`). Then sign in with a demo account. The seed prints the logins: bidder `0900000201` and seller `0900000101`, sharing one password. Set `DEMO_USER_PASSWORD` before seeding to choose that password.
+To try it with data, seed the backend (`bun run db:seed && bun run db:seed:demo`). Then sign in as a demo bidder, `0900000201` to `0900000208`, with the `DEMO_USER_PASSWORD` from the backend's `.env` (or the random password the seed prints).
 
 ## How it is organised
 
@@ -111,7 +111,6 @@ lib/
     auction/      detail (pinned countdown, bid fee and range, my secret bids, specs, result), bid sheet, revealed results
     account/      my bids, won (pay, receipt, confirm, refund), watchlist, notifications, settings
     payments/     Chapa checkout, status polling, history, receipts
-    seller/       apply, documents, listings (spec editor, photos), schedule auction, earnings
 ```
 
 ### Rules the app follows

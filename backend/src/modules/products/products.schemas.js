@@ -22,18 +22,11 @@ export const updateProductSchema = z
 
 export const imageOrderSchema = z.object({ imageIds: z.array(z.coerce.bigint().positive()).min(1).max(30) });
 
-const statuses = z.enum(['DRAFT', 'PENDING_REVIEW', 'APPROVED', 'REJECTED', 'ARCHIVED']);
-
-export const ownListQuery = z.object({
-  status: statuses.optional(),
-  page: z.coerce.number().int().min(1).default(1),
-  pageSize: z.coerce.number().int().min(1).max(50).default(20),
-});
+const statuses = z.enum(['DRAFT', 'APPROVED', 'ARCHIVED']);
 
 export const adminListQuery = z.object({
   status: statuses.optional(),
   categoryId: z.coerce.number().int().positive().optional(),
-  sellerId: z.coerce.bigint().positive().optional(),
   q: z.string().trim().min(1).max(100).optional(),
   page: z.coerce.number().int().min(1).default(1),
   pageSize: z.coerce.number().int().min(1).max(100).default(25),

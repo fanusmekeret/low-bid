@@ -9,13 +9,12 @@ import { createHmac } from 'node:crypto';
 //   • At the close, the lowest amount that exactly one bid has wins ("lowest unique bid").
 //   • If no amount is unique, the lowest amount wins, and among bids on it the one whose fee
 //     was confirmed first.
-//   • The winner pays their bid amount. The seller is paid their agreed price (less commission);
-//     bid fees fund the difference.
+//   • The winner pays their bid amount. LOW BID (the only seller) supplies the item; bid fees and
+//     the winning bid together pay for it.
 
 const MINUTE = 60_000;
-export const MIN_START_LEAD_MINUTES = 10;
 export const MAX_START_AHEAD_DAYS = 60;
-export const MIN_SELLER_PRICE_MINOR = 100_00n; // 100 ETB
+export const MIN_ITEM_COST_MINOR = 100_00n; // 100 ETB
 export const MAX_PRICE_MINOR = 10_000_000_000_00n; // 10 billion ETB
 export const MIN_BID_FEE_MINOR = 100n; // 1 ETB
 
@@ -23,20 +22,21 @@ export const MIN_BID_FEE_MINOR = 100n; // 1 ETB
 export const PUBLIC_STATUSES = Object.freeze(['SCHEDULED', 'LIVE', 'CLOSED']);
 
 /**
- * Checks a seller's new auction. Returns a list of { path, message }; empty means valid.
- * @param {{ sellerPrice: bigint, marketValue: bigint|null, startsAt: Date, durationMinutes: number, now: Date,
+ * Checks a new auction. Returns a list of { path, message }; empty means valid.
+ * A start time up to a minute in the past means "start now".
+ * @param {{ itemCost: bigint, marketValue: bigint|null, startsAt: Date, durationMinutes: number, now: Date,
  *           rules: { minDurationHours: number, maxDurationDays: number } }} d
  */
 export function validateAuctionDraft(d) {
   const errors = [];
   const add = (path, message) => errors.push({ path, message });
 
-  if (d.sellerPrice < MIN_SELLER_PRICE_MINOR) add('sellerPrice', 'Your price must be at least 100 ETB');
-  if (d.sellerPrice > MAX_PRICE_MINOR) add('sellerPrice', 'Your price is too high');
-  if (d.marketValue !== null && d.marketValue !== undefined && d.marketValue < d.sellerPrice) add('marketValue', 'The retail value cannot be below your price');
+  if (d.itemCost < MIN_ITEM_COST_MINOR) add('itemCost', 'The item cost must be at least 100 ETB');
+  if (d.itemCost > MAX_PRICE_MINOR) add('itemCost', 'The item cost is too high');
+  if (d.marketValue !== null && d.marketValue !== undefined && d.marketValue < d.itemCost) add('marketValue', 'The retail value cannot be below the item cost');
 
   const lead = d.startsAt.getTime() - d.now.getTime();
-  if (lead < MIN_START_LEAD_MINUTES * MINUTE) add('startsAt', `Start at least ${MIN_START_LEAD_MINUTES} minutes from now, to leave time for approval`);
+  if (lead < -MINUTE) add('startsAt', 'The start time is in the past');
   if (lead > MAX_START_AHEAD_DAYS * 24 * 60 * MINUTE) add('startsAt', `Start within ${MAX_START_AHEAD_DAYS} days`);
 
   const minMinutes = d.rules.minDurationHours * 60;
@@ -63,27 +63,17 @@ export function validateBiddingTerms(t) {
   return errors;
 }
 
-/** Defaults for a new auction: the category's fee (or the platform's), bids from 0.01 ETB up to the seller's price. */
-export function defaultBiddingTerms({ sellerPrice, categoryBidFee, settings }) {
+/** Defaults for a new auction: the category's fee (or the platform's), bids from 0.01 ETB up to the item cost. */
+export function defaultBiddingTerms({ itemCost, categoryBidFee, settings }) {
   const fee = categoryBidFee > 0n ? categoryBidFee : BigInt(settings.defaultBidFeeMinor);
   return {
     bidFee: fee,
     minBid: BigInt(settings.minBidMinor),
-    maxBid: sellerPrice,
+    maxBid: itemCost,
     bidStep: BigInt(settings.bidStepMinor),
     minPaidBids: 0,
     maxBidsPerUser: settings.maxBidsPerUser,
   };
-}
-
-/**
- * When an admin approves late, keep the auction's full length by moving it forward.
- * @returns {{ startsAt: Date, endsAt: Date, startsNow: boolean }}
- */
-export function scheduleOnApproval({ startsAt, endsAt, now }) {
-  if (startsAt > now) return { startsAt, endsAt, startsNow: false };
-  const duration = endsAt.getTime() - startsAt.getTime();
-  return { startsAt: now, endsAt: new Date(now.getTime() + duration), startsNow: true };
 }
 
 /**
@@ -94,7 +84,6 @@ export function scheduleOnApproval({ startsAt, endsAt, now }) {
  * @param {Date} s.startsAt
  * @param {Date} s.endsAt
  * @param {Date} s.now database clock
- * @param {bigint} s.sellerUserId
  * @param {bigint} s.minBid
  * @param {bigint} s.maxBid
  * @param {bigint} s.bidStep
@@ -115,7 +104,6 @@ export function evaluateBid(s, b) {
   if (s.status === 'SCHEDULED' && s.now < s.startsAt) {
     return fail(409, 'AUCTION_NOT_STARTED', 'Bidding has not started yet', { startsAt: s.startsAt });
   }
-  if (b.bidderId === s.sellerUserId) return fail(403, 'SELLER_CANNOT_BID', 'You cannot bid on your own item');
   if (b.bidderBlock) return fail(403, b.bidderBlock.code, b.bidderBlock.message);
 
   if (b.amount < s.minBid || b.amount > s.maxBid) {

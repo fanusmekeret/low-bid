@@ -5,7 +5,6 @@ export const ROLES = Object.freeze({
   GUEST: 'guest', // not assigned to accounts; documents what unauthenticated visitors can do (public routes)
   BUYER: 'buyer',
   BIDDER: 'bidder',
-  SELLER: 'seller',
   AUCTION_ADMIN: 'auction_admin',
   SUPER_ADMIN: 'super_admin',
 });
@@ -15,18 +14,12 @@ export const PERMISSIONS = Object.freeze({
   PROFILE_MANAGE: 'profile:manage',
   WATCHLIST_MANAGE: 'watchlist:manage',
   NOTIFICATION_READ: 'notification:read',
-  SELLER_APPLY: 'seller:apply',
   // verified bidder
   BID_PLACE: 'bid:place',
   PAYMENT_MAKE: 'payment:make',
-  // seller
-  LISTING_MANAGE: 'listing:manage',
-  AUCTION_CREATE: 'auction:create',
-  SELLER_DASHBOARD: 'seller:dashboard',
   // auction admin
   ADMIN_ACCESS: 'admin:access',
-  SELLER_REVIEW: 'seller:review',
-  AUCTION_REVIEW: 'auction:review',
+  AUCTION_MANAGE: 'auction:manage',
   AUCTION_CANCEL: 'auction:cancel',
   PRODUCT_MANAGE: 'product:manage',
   CATEGORY_MANAGE: 'category:manage',
@@ -34,7 +27,7 @@ export const PERMISSIONS = Object.freeze({
   PAYMENT_VIEW: 'payment:view',
   PAYMENT_RECONCILE: 'payment:reconcile',
   REFUND_MANAGE: 'refund:manage',
-  PAYOUT_MANAGE: 'payout:manage',
+  ORDER_FULFIL: 'order:fulfil',
   REPORT_VIEW: 'report:view',
   USER_VIEW: 'user:view',
   // super admin only
@@ -48,23 +41,18 @@ export const PERMISSION_DESCRIPTIONS = Object.freeze({
   'profile:manage': 'Edit own profile and devices',
   'watchlist:manage': 'Add and remove auctions from own watchlist',
   'notification:read': 'Read own notifications',
-  'seller:apply': 'Apply to become a seller',
   'bid:place': 'Place bids (requires verified phone)',
-  'payment:make': 'Pay for won auctions and deposits',
-  'listing:manage': 'Create and edit own product listings',
-  'auction:create': 'Create and schedule own auctions',
-  'seller:dashboard': 'View own sales, earnings and payouts',
+  'payment:make': 'Pay bid fees and won auctions',
   'admin:access': 'Open the admin dashboard',
-  'seller:review': 'Approve or reject seller applications',
-  'auction:review': 'Approve or reject auction listings',
+  'auction:manage': 'Create, schedule and edit auctions',
   'auction:cancel': 'Cancel or suspend auctions',
-  'product:manage': 'Edit or remove any product',
+  'product:manage': 'Write, publish and archive LOW BID listings',
   'category:manage': 'Manage categories and banners',
   'bid:monitor': 'View all bids and bidding activity',
   'payment:view': 'View payments and webhooks',
   'payment:reconcile': 'Re-verify and reconcile payments',
   'refund:manage': 'Approve and record refunds',
-  'payout:manage': 'Release and record seller payouts',
+  'order:fulfil': 'Mark won items as delivered',
   'report:view': 'View dashboards and export reports',
   'user:view': 'View user accounts',
   'user:manage': 'Suspend, ban or reactivate users',
@@ -74,20 +62,18 @@ export const PERMISSION_DESCRIPTIONS = Object.freeze({
 });
 
 const P = PERMISSIONS;
-const buyer = [P.PROFILE_MANAGE, P.WATCHLIST_MANAGE, P.NOTIFICATION_READ, P.SELLER_APPLY];
+const buyer = [P.PROFILE_MANAGE, P.WATCHLIST_MANAGE, P.NOTIFICATION_READ];
 const bidder = [P.BID_PLACE, P.PAYMENT_MAKE];
-const seller = [P.LISTING_MANAGE, P.AUCTION_CREATE, P.SELLER_DASHBOARD];
 const auctionAdmin = [
-  P.ADMIN_ACCESS, P.SELLER_REVIEW, P.AUCTION_REVIEW, P.AUCTION_CANCEL, P.PRODUCT_MANAGE, P.CATEGORY_MANAGE,
-  P.BID_MONITOR, P.PAYMENT_VIEW, P.PAYMENT_RECONCILE, P.REFUND_MANAGE, P.PAYOUT_MANAGE, P.REPORT_VIEW, P.USER_VIEW,
+  P.ADMIN_ACCESS, P.AUCTION_MANAGE, P.AUCTION_CANCEL, P.PRODUCT_MANAGE, P.CATEGORY_MANAGE,
+  P.BID_MONITOR, P.PAYMENT_VIEW, P.PAYMENT_RECONCILE, P.REFUND_MANAGE, P.ORDER_FULFIL, P.REPORT_VIEW, P.USER_VIEW,
 ];
 
-/** Roles are additive on an account: a verified seller holds buyer + bidder + seller. */
+/** Roles are additive on an account. LOW BID is the only seller, so there is no seller role. */
 export const ROLE_DEFINITIONS = Object.freeze([
   { code: ROLES.GUEST, name: 'Guest visitor', description: 'Unauthenticated browsing (public routes only)', permissions: [] },
   { code: ROLES.BUYER, name: 'Registered buyer', description: 'Every registered account', permissions: buyer },
   { code: ROLES.BIDDER, name: 'Verified bidder', description: 'Granted when the phone number is verified', permissions: bidder },
-  { code: ROLES.SELLER, name: 'Seller', description: 'Granted when a seller application is approved', permissions: seller },
   { code: ROLES.AUCTION_ADMIN, name: 'Auction administrator', description: 'Day-to-day marketplace operations', permissions: auctionAdmin },
   { code: ROLES.SUPER_ADMIN, name: 'Super administrator', description: 'Full access', permissions: Object.values(P) },
 ]);

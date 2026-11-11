@@ -1,21 +1,18 @@
 import { createHmac, timingSafeEqual } from 'node:crypto';
-import { applyBasisPoints, etbToMinor } from '../../utils/money.js';
+import { etbToMinor } from '../../utils/money.js';
 
 // Pure payment rules: no database, no network. All money is BigInt santim.
 
 // ───────────────────────────── Settlement ─────────────────────────────
 
 /**
- * How a winning payment's money splits. In a lowest-unique-bid auction the winner pays their
- * (usually small) bid, while the seller is paid the price agreed when the auction was created,
- * less commission. The platform covers the difference from bid fees.
- * @param {{ finalPrice: bigint, buyerPremium: bigint, sellerPrice: bigint, sellerCommissionBp: number }} x
- * @returns {{ total: bigint, cashDue: bigint, commission: bigint, sellerNet: bigint }}
+ * What the winner pays: their winning bid plus the optional buyer premium (0 by default).
+ * LOW BID is the only seller, so all of it is platform revenue.
+ * @param {{ finalPrice: bigint, buyerPremium: bigint }} x
  */
-export function computeSettlement({ finalPrice, buyerPremium, sellerPrice, sellerCommissionBp }) {
+export function computeSettlement({ finalPrice, buyerPremium }) {
   const total = finalPrice + buyerPremium;
-  const commission = applyBasisPoints(sellerPrice, sellerCommissionBp);
-  return { total, cashDue: total, commission, sellerNet: sellerPrice - commission };
+  return { total, cashDue: total };
 }
 
 // ───────────────────────────── Ledger ─────────────────────────────
@@ -28,24 +25,16 @@ const move = (from, to, amount, memo) =>
 export const ledger = {
   bidFeePaid: (fee) => move('EXTERNAL', 'PLATFORM_REVENUE', fee, 'Bid fee received'),
   bidFeeRefunded: (fee) => move('PLATFORM_REVENUE', 'EXTERNAL', fee, 'Bid fee refunded'),
-  /** Winner paid: cash to escrow, then to the platform, which owes the seller their agreed price. */
+  /** Winner paid: through escrow (so a late payment can be told apart) into platform revenue. */
   salePaid: (s) => [
     ...move('EXTERNAL', 'ESCROW', s.cashDue, 'Winning bid payment'),
     ...move('ESCROW', 'PLATFORM_REVENUE', s.total, 'Winning bid to platform'),
-    ...move('PLATFORM_REVENUE', 'SELLER_PAYABLE', s.sellerNet, 'Owed to seller (agreed price less commission)'),
   ],
   providerFee: (fee) => move('PLATFORM_REVENUE', 'PROVIDER_FEES', fee, 'Chapa processing fee'),
-  payoutPaid: (n) => move('SELLER_PAYABLE', 'EXTERNAL', n, 'Seller payout'),
-  /** A refunded sale: the seller is no longer owed what is left of their payout. */
-  payoutReversed: (n) => move('SELLER_PAYABLE', 'PLATFORM_REVENUE', n, 'Seller payout cancelled (sale refunded)'),
   /** Money that arrived but cannot be used (the offer had ended): held in escrow until refunded. */
   unappliedReceived: (amount) => move('EXTERNAL', 'ESCROW', amount, 'Payment received after the offer ended'),
   unappliedRefunded: (amount) => move('ESCROW', 'EXTERNAL', amount, 'Refund of unapplied payment'),
-  /** Sale refund: from what the seller is owed first, then from platform revenue. */
-  saleRefunded: ({ fromSeller, fromPlatform }) => [
-    ...move('SELLER_PAYABLE', 'EXTERNAL', fromSeller, 'Sale refund (seller share)'),
-    ...move('PLATFORM_REVENUE', 'EXTERNAL', fromPlatform, 'Sale refund (platform share)'),
-  ],
+  saleRefunded: (amount) => move('PLATFORM_REVENUE', 'EXTERNAL', amount, 'Sale refund'),
 };
 
 export function isBalanced(lines) {
@@ -58,12 +47,6 @@ export function isBalanced(lines) {
     else return false;
   }
   return debit === credit;
-}
-
-/** Splits a sale refund: the seller's unpaid share first, the platform covers the rest. */
-export function splitSaleRefund(amount, { sellerNetUnpaid }) {
-  const fromSeller = amount <= sellerNetUnpaid ? amount : sellerNetUnpaid;
-  return { fromSeller, fromPlatform: amount - fromSeller };
 }
 
 // ───────────────────────────── Refundable amount ─────────────────────────────

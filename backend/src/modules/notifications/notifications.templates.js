@@ -4,48 +4,6 @@
 const clip = (s, n = 60) => (s.length > n ? `${s.slice(0, n - 1)}…` : s);
 
 export const TEMPLATES = {
-  SELLER_APPROVED: () => ({
-    titleEn: 'You are now a LOW BID seller',
-    titleAm: 'አሁን የLOW BID ሻጭ ነዎት',
-    bodyEn: 'Your seller account is approved. Create your first listing.',
-    bodyAm: 'የሻጭ መለያዎ ጸድቋል። የመጀመሪያ ዕቃዎን ያስመዝግቡ።',
-  }),
-  SELLER_REJECTED: ({ reason }) => ({
-    titleEn: 'Seller application not approved',
-    titleAm: 'የሻጭ ማመልከቻዎ አልጸደቀም',
-    bodyEn: `Reason: ${reason}. Update your details and apply again.`,
-    bodyAm: `ምክንያት፦ ${reason}። መረጃዎን አስተካክለው እንደገና ያመልክቱ።`,
-  }),
-  SELLER_SUSPENDED: ({ reason }) => ({
-    titleEn: 'Seller account suspended',
-    titleAm: 'የሻጭ መለያዎ ታግዷል',
-    bodyEn: `Reason: ${reason}. Contact support for help.`,
-    bodyAm: `ምክንያት፦ ${reason}። ለእርዳታ ድጋፍ ሰጪን ያግኙ።`,
-  }),
-  PRODUCT_APPROVED: ({ title }) => ({
-    titleEn: 'Listing approved',
-    titleAm: 'ዕቃዎ ጸድቋል',
-    bodyEn: `"${clip(title)}" is approved. You can now schedule its auction.`,
-    bodyAm: `"${clip(title)}" ጸድቋል። አሁን ጨረታውን መወሰን ይችላሉ።`,
-  }),
-  PRODUCT_REJECTED: ({ title, reason }) => ({
-    titleEn: 'Listing needs changes',
-    titleAm: 'ዕቃዎ ማስተካከያ ያስፈልገዋል',
-    bodyEn: `"${clip(title)}": ${reason}`,
-    bodyAm: `"${clip(title)}"፦ ${reason}`,
-  }),
-  AUCTION_APPROVED: ({ title }) => ({
-    titleEn: 'Auction approved',
-    titleAm: 'ጨረታዎ ጸድቋል',
-    bodyEn: `"${clip(title)}" is scheduled. Bidding opens at the start time.`,
-    bodyAm: `"${clip(title)}" ተይዟል። ጨረታው በተወሰነው ሰዓት ይጀምራል።`,
-  }),
-  AUCTION_REJECTED: ({ title, reason }) => ({
-    titleEn: 'Auction not approved',
-    titleAm: 'ጨረታዎ አልጸደቀም',
-    bodyEn: `"${clip(title)}": ${reason}`,
-    bodyAm: `"${clip(title)}"፦ ${reason}`,
-  }),
   BID_CONFIRMED: ({ title, amount }) => ({
     titleEn: 'Bid placed',
     titleAm: 'ጨረታዎ ገብቷል',
@@ -73,18 +31,6 @@ export const TEMPLATES = {
     bodyAm: feesRefunded
       ? `"${clip(title)}" በቂ ጨረታ ስላላገኘ ያለ ሽያጭ አብቅቷል። የጨረታ ክፍያዎ ይመለስልዎታል።`
       : noSale ? `"${clip(title)}" ያለ ሽያጭ አብቅቷል።` : `"${clip(title)}" አብቅቷል፤ ሌላ ተጫራች አሸንፏል። ሁሉንም ጨረታዎች በውጤቱ ይመልከቱ።`,
-  }),
-  AUCTION_SOLD: ({ title, amount }) => ({
-    titleEn: 'Your item sold',
-    titleAm: 'ዕቃዎ ተሽጧል',
-    bodyEn: `"${clip(title)}" has a winner. You will be paid your price of ${amount} (less commission) once the buyer pays and confirms delivery.`,
-    bodyAm: `"${clip(title)}" አሸናፊ አግኝቷል። ገዢው ከፍሎ መረከቡን ሲያረጋግጥ ዋጋዎ ${amount} (ኮሚሽን ተቀንሶ) ይከፈልዎታል።`,
-  }),
-  AUCTION_UNSOLD: ({ title, notEnoughBids }) => ({
-    titleEn: 'Auction ended without a sale',
-    titleAm: 'ጨረታው ያለ ሽያጭ አብቅቷል',
-    bodyEn: notEnoughBids ? `"${clip(title)}" did not reach the minimum number of bids. You can relist it.` : `"${clip(title)}" did not sell. You can relist it.`,
-    bodyAm: notEnoughBids ? `"${clip(title)}" የሚያስፈልገውን የጨረታ ብዛት አላገኘም። እንደገና ማቅረብ ይችላሉ።` : `"${clip(title)}" አልተሸጠም። እንደገና ማቅረብ ይችላሉ።`,
   }),
   AUCTION_CANCELLED: ({ title, reason }) => ({
     titleEn: 'Auction cancelled',
@@ -122,22 +68,16 @@ export const TEMPLATES = {
     bodyEn: `The winner of "${clip(title)}" did not pay. Buy it for your bid of ${amount} by paying within ${hours} hours.`,
     bodyAm: `የ"${clip(title)}" አሸናፊ አልከፈለም። በጫረቱት ${amount} ለመግዛት በ${hours} ሰዓት ውስጥ ይክፈሉ።`,
   }),
-  SALE_PAID: ({ title, amount }) => ({
-    titleEn: 'Buyer has paid',
-    titleAm: 'ገዢው ከፍሏል',
-    bodyEn: `The buyer paid for "${clip(title)}". Arrange handover. You will receive ${amount} after the buyer confirms receipt.`,
-    bodyAm: `ገዢው ለ"${clip(title)}" ከፍሏል። ርክክቡን ያመቻቹ። ገዢው መቀበሉን ሲያረጋግጥ ${amount} ይደርስዎታል።`,
+  ITEM_DELIVERED: ({ title, days }) => ({
+    titleEn: 'Item delivered',
+    titleAm: 'ዕቃው ደርሷል',
+    bodyEn: `LOW BID delivered "${clip(title)}". If something is wrong, request a refund in the app within ${days} days.`,
+    bodyAm: `LOW BID "${clip(title)}"ን አድርሷል። ችግር ካለ በ${days} ቀናት ውስጥ በመተግበሪያው ተመላሽ ይጠይቁ።`,
   }),
   REFUND_ISSUED: ({ title, amount }) => ({
     titleEn: 'Refund sent',
     titleAm: 'ተመላሽ ተልኳል',
     bodyEn: `${amount} for "${clip(title)}" has been refunded to your payment method.`,
     bodyAm: `ለ"${clip(title)}" ${amount} ወደ ከፈሉበት ተመልሷል።`,
-  }),
-  PAYOUT_SENT: ({ amount, reference }) => ({
-    titleEn: 'Payout sent',
-    titleAm: 'ክፍያዎ ተልኳል',
-    bodyEn: `${amount} has been sent to your account. Reference ${reference}.`,
-    bodyAm: `${amount} ወደ ሂሳብዎ ተልኳል። መለያ ቁጥር ${reference}።`,
   }),
 };

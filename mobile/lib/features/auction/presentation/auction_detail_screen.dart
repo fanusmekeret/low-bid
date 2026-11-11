@@ -406,7 +406,7 @@ class _SellerTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return _Section(
-      title: S.of(context).seller,
+      title: S.of(context).soldBy,
       child: Card(
         margin: EdgeInsets.zero,
         child: ListTile(
@@ -470,7 +470,6 @@ class _BottomBar extends ConsumerWidget {
     if (user == null) {
       return bar(FilledButton(onPressed: () => requireSignedIn(context, ref, returnTo: '/auctions/${d.id}'), child: Text(s.signInToContinue)));
     }
-    if (viewer?.isSeller == true) return bar(FilledButton(onPressed: null, child: Text(s.yourListing)));
     if (!user.phoneVerified) {
       return bar(FilledButton(onPressed: () => startPhoneVerification(context, ref, from: '/auctions/${d.id}'), child: Text(s.verifyToBid)));
     }

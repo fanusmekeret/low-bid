@@ -7,10 +7,10 @@ const bp = z.number().int().min(0).max(10_000); // basis points: 1000 = 10%
 const minorString = z.string().regex(/^\d{1,15}$/, 'Amount in santim, digits only');
 
 export const SETTING_DEFINITIONS = {
-  'fees.commission': {
-    description: 'Platform fees in basis points (1000 = 10%). Decided 2026-11-07: 10% seller commission (on the seller\'s agreed price), no buyer premium. Bid fees are set under auction.lowestUniqueBid.',
-    schema: z.object({ sellerCommissionBp: bp, buyerPremiumBp: bp, sellerListingFeeMinor: minorString, featuredListingFeeMinor: minorString }).strict(),
-    default: { sellerCommissionBp: 1000, buyerPremiumBp: 0, sellerListingFeeMinor: '0', featuredListingFeeMinor: '0' },
+  'fees': {
+    description: 'Optional buyer premium on the winning bid, in basis points (100 = 1%). Off by default: LOW BID earns from bid fees.',
+    schema: z.object({ buyerPremiumBp: bp }).strict(),
+    default: { buyerPremiumBp: 0 },
   },
   'auction.lowestUniqueBid': {
     description: 'Lowest unique bid auctions: default bid fee (categories can set their own), allowed bid amounts, per-person bid limit, and how long after the end the close waits for bid-fee payments still being confirmed.',
@@ -54,10 +54,10 @@ export const SETTING_DEFINITIONS = {
     }).strict(),
     default: { checkoutTimeoutMinutes: 30, reconcileEveryMinutes: 10, reconcileAfterMinutes: 5, refundMode: 'CHAPA_API', reminderHoursBeforeDeadline: 12 },
   },
-  'payout.policy': {
-    description: 'Seller payouts are released after the dispute window.',
-    schema: z.object({ disputeWindowDays: z.number().int().min(0).max(30), method: z.enum(['MANUAL_BANK_TRANSFER', 'CHAPA_TRANSFER']) }).strict(),
-    default: { disputeWindowDays: 3, method: 'MANUAL_BANK_TRANSFER' },
+  'orders.policy': {
+    description: 'After the winner pays, LOW BID delivers the item. The winner may ask for a refund within disputeWindowDays of delivery (or of payment, if not yet delivered).',
+    schema: z.object({ disputeWindowDays: z.number().int().min(0).max(30) }).strict(),
+    default: { disputeWindowDays: 3 },
   },
 };
 

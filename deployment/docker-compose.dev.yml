@@ -1,8 +1,10 @@
 # Local MySQL 8 + Redis for development and integration tests.
-# Start:  docker compose -f deployment/docker-compose.dev.yml up -d
+# `bun run dev` (in backend/) starts these automatically. By hand:
+#   docker compose -f deployment/docker-compose.dev.yml up -d --wait
 services:
   mysql:
     image: mysql:8.4
+    restart: unless-stopped
     command: ["--character-set-server=utf8mb4", "--collation-server=utf8mb4_0900_ai_ci"]
     environment:
       MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-root-dev-only}
@@ -20,10 +22,15 @@ services:
 
   redis:
     image: redis:7-alpine
+    restart: unless-stopped
     command: ["redis-server", "--appendonly", "yes"]
     ports: ["127.0.0.1:6379:6379"]
     volumes:
       - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 3s
+      retries: 20
 
 volumes:
   mysql-data:

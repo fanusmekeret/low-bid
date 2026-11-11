@@ -1,7 +1,7 @@
 import { prisma } from '../../config/prisma.js';
 import { ENDING_SOON_MINUTES, scheduleAuctionClose, scheduleAuctionJobs } from '../../jobs/queue.js';
 import { emitToAuction, emitToUser } from '../../sockets/realtime.js';
-import { conflict, forbidden } from '../../utils/errors.js';
+import { conflict } from '../../utils/errors.js';
 import { logger } from '../../utils/logger.js';
 import { applyBasisPoints, formatEtb, moneyDto } from '../../utils/money.js';
 import { recordAudit } from '../audit/audit.service.js';
@@ -69,7 +69,7 @@ async function settleLateFees(auctionId, endsAt, now) {
  * confirmed first. Idempotent: a second call, or a call before the end, changes nothing.
  */
 export async function closeAuction(auctionId) {
-  const [fees, rules] = await Promise.all([getSetting('fees.commission'), getSetting('auction.rules')]);
+  const [fees, rules] = await Promise.all([getSetting('fees'), getSetting('auction.rules')]);
 
   const pre = await prisma.auction.findUnique({ where: { id: BigInt(auctionId) }, select: { status: true, endsAt: true } });
   if (!pre || !['LIVE', 'SCHEDULED'].includes(pre.status)) return { result: 'skipped', status: pre?.status };
@@ -121,12 +121,7 @@ export async function closeAuction(auctionId) {
     // Notifications are part of the close, so nobody is told before it is final.
     const loserIds = [...new Set(bids.map((b) => b.bidderId))].filter((id) => id !== winnerId);
     const data = { auctionId: s.id };
-    if (sold) {
-      await notify(winnerId, 'AUCTION_WON', { title: s.title, amount: formatEtb(result.totalDue), hours: rules.paymentDeadlineHours }, data, tx);
-      await notify(s.sellerUserId, 'AUCTION_SOLD', { title: s.title, amount: formatEtb(s.sellerPrice) }, data, tx);
-    } else {
-      await notify(s.sellerUserId, 'AUCTION_UNSOLD', { title: s.title, notEnoughBids: outcome === 'NOT_ENOUGH_BIDS' }, data, tx);
-    }
+    if (sold) await notify(winnerId, 'AUCTION_WON', { title: s.title, amount: formatEtb(result.totalDue), hours: rules.paymentDeadlineHours }, data, tx);
     await notifyMany(loserIds, 'AUCTION_LOST', { title: s.title, noSale: !sold, feesRefunded: outcome === 'NOT_ENOUGH_BIDS' }, data, tx);
 
     return {
@@ -180,19 +175,12 @@ export async function sendEndingSoon(auctionId) {
 // ───────────────────────────── Cancel ─────────────────────────────
 
 /**
- * Sellers may cancel before bidding opens; admins at any time before the close.
- * Bidders and watchers are told why, and every paid bid fee is refunded.
+ * LOW BID staff may cancel any auction before it closes. Bidders and watchers are told why,
+ * and every paid bid fee is refunded (setting auction.lowestUniqueBid.refundFeesOnCancel).
  */
-export async function cancelAuction(auctionId, { reason, actorId, asAdmin, sellerId, req }) {
+export async function cancelAuction(auctionId, { reason, actorId, req }) {
   const r = await withRetry(async (tx) => {
     const s = await lockAuction(tx, auctionId);
-    if (!asAdmin) {
-      const owner = await tx.product.findUnique({ where: { id: s.productId }, select: { sellerId: true } });
-      if (owner?.sellerId !== sellerId) throw forbidden('NOT_YOUR_AUCTION', 'This is not your auction');
-      if (!['PENDING_APPROVAL', 'SCHEDULED'].includes(s.status) || (s.status === 'SCHEDULED' && s.now >= s.startsAt)) {
-        throw conflict('AUCTION_CANNOT_CANCEL', 'Once bidding opens, only LOW BID support can cancel an auction');
-      }
-    }
     if (['CLOSED', 'CANCELLED'].includes(s.status)) throw conflict('AUCTION_ALREADY_FINISHED', `This auction is already ${s.status.toLowerCase()}`);
 
     await tx.auction.update({ where: { id: s.id }, data: { status: 'CANCELLED', cancelledReason: reason, cancelledById: BigInt(actorId) } });
@@ -202,9 +190,8 @@ export async function cancelAuction(auctionId, { reason, actorId, asAdmin, selle
     ]);
     const data = { auctionId: s.id };
     await notifyMany([...bidders.map((b) => b.bidderId), ...watchers.map((w) => w.userId)], 'AUCTION_CANCELLED', { title: s.title, reason }, data, tx);
-    if (asAdmin) await notify(s.sellerUserId, 'AUCTION_CANCELLED', { title: s.title, reason }, data, tx);
     await recordAudit({
-      actorId, action: asAdmin ? 'auction.admin_cancel' : 'auction.cancel', entity: 'auction', entityId: s.id,
+      actorId, action: 'auction.cancel', entity: 'auction', entityId: s.id,
       before: { status: s.status, bidCount: s.bidCount }, after: { reason }, req,
     }, tx);
     return { previousStatus: s.status };
