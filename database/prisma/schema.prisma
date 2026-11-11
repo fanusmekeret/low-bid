@@ -1,9 +1,13 @@
 // LOW BID — Prisma schema (MySQL 8, InnoDB, utf8mb4)
 // Money: every amount is BIGINT in santim (1 ETB = 100 santim). Never use floats.
-// Run: npx prisma migrate dev --name init --schema database/prisma/schema.prisma
+// Run from backend/: bun run db:push (development) — see backend/README.md
 
 generator client {
   provider = "prisma-client-js"
+  // Generate into the backend's node_modules, where the API's @prisma/client looks. Without this,
+  // Prisma picks the first @prisma/client it finds walking up from this folder (e.g. one in the
+  // repo root), and the API keeps using an out-of-date client.
+  output   = "../../backend/node_modules/.prisma/client"
 }
 
 datasource db {
