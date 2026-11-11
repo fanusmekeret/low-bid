@@ -17,7 +17,7 @@ This folder holds `lib/`, `test/` and `pubspec.yaml`. Generate the Android and i
 
 ```bash
 cd mobile
-flutter create . --org et.lowbid --project-name lowbid --platforms android,ios
+flutter create . --org et.lowbid --project-name lowbid --platforms android,ios,web
 flutter pub get
 ```
 
@@ -72,6 +72,7 @@ flutter run
 # A real phone on the same Wi‑Fi, or iOS simulator
 flutter run --dart-define=API_BASE_URL=http://192.168.1.20:4000
 flutter run --dart-define=API_BASE_URL=http://localhost:4000      # iOS simulator
+flutter run -d chrome --dart-define=API_BASE_URL=http://localhost:4000   # Chrome (backend on this PC or in WSL)
 
 # Production
 flutter build apk --release --dart-define=API_BASE_URL=https://api.lowbid.et
