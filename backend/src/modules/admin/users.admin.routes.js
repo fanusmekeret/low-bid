@@ -26,7 +26,7 @@ const statusBody = z.object({
   reason: z.string().trim().min(3).max(500),
 });
 
-const ASSIGNABLE = [ROLES.BUYER, ROLES.BIDDER, ROLES.SELLER, ROLES.AUCTION_ADMIN, ROLES.SUPER_ADMIN];
+const ASSIGNABLE = [ROLES.BUYER, ROLES.BIDDER, ROLES.AUCTION_ADMIN, ROLES.SUPER_ADMIN];
 const roleBody = z.object({ role: z.enum(ASSIGNABLE) });
 
 export const adminUsersRouter = Router();
@@ -57,7 +57,7 @@ adminUsersRouter.get('/users', requirePermission(P.USER_VIEW), validate({ query:
       orderBy: { createdAt: 'desc' },
       skip: (page - 1) * pageSize,
       take: pageSize,
-      include: { sellerProfile: true, roles: { include: { role: true } } },
+      include: { roles: { include: { role: true } } },
     }),
   ]);
   res.json({
@@ -69,7 +69,7 @@ adminUsersRouter.get('/users', requirePermission(P.USER_VIEW), validate({ query:
 adminUsersRouter.get('/users/:id', requirePermission(P.USER_VIEW), validate({ params: idParam }), async (req, res) => {
   const user = await prisma.user.findUnique({
     where: { id: req.valid.params.id },
-    include: { sellerProfile: true, _count: { select: { bids: true, payments: true, devices: true } } },
+    include: { _count: { select: { bids: true, payments: true, devices: true } } },
   });
   if (!user) throw notFound('USER_NOT_FOUND', 'User not found');
   const roles = await getUserRoleCodes(user.id);
@@ -110,9 +110,6 @@ adminUsersRouter.post('/users/:id/roles', requirePermission(P.ROLE_ASSIGN), vali
   const id = req.valid.params.id;
   const exists = await prisma.user.findUnique({ where: { id }, select: { id: true } });
   if (!exists) throw notFound('USER_NOT_FOUND', 'User not found');
-  if (req.valid.body.role === ROLES.SELLER) {
-    throw badRequest('USE_SELLER_APPROVAL', 'Seller access is granted by approving a seller application');
-  }
   await prisma.$transaction(async (tx) => {
     await grantRole(id, req.valid.body.role, req.auth.userId, tx);
     await recordAudit({ actorId: req.auth.userId, action: 'user.role_grant', entity: 'user', entityId: id, after: { role: req.valid.body.role }, req }, tx);

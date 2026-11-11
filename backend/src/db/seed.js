@@ -4,6 +4,7 @@ import { pathToFileURL } from 'node:url';
 import { env } from '../config/env.js';
 import { prisma } from '../config/prisma.js';
 import { hashPassword } from '../modules/auth/password.js';
+import { ensureHouseSeller } from '../modules/house/house.service.js';
 import { PERMISSION_DESCRIPTIONS, ROLE_DEFINITIONS, ROLES } from '../modules/rbac/permissions.js';
 import { SETTING_DEFINITIONS } from '../modules/settings/settings.definitions.js';
 import { etbToMinor } from '../utils/money.js';
@@ -99,7 +100,14 @@ async function main() {
   await seedRbac();
   await seedCategories();
   await seedSettings();
+  await seedHouseSeller();
   await seedSuperAdmin();
+}
+
+/** LOW BID's own seller profile, which owns every listing. */
+export async function seedHouseSeller() {
+  const house = await ensureHouseSeller(prisma);
+  log(`✓ house seller "${house.businessName}"`);
 }
 
 // Run only when executed directly (`bun src/db/seed.js`), not when imported by tests.

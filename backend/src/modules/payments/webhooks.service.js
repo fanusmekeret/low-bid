@@ -4,7 +4,6 @@ import { newObjectId } from '../../services/storage/keys.js';
 import { logger } from '../../utils/logger.js';
 import { verifyWebhookSignature } from './payment.rules.js';
 import { verifyAndSettle } from './payments.service.js';
-import { checkPayout } from './payouts.service.js';
 import { checkRefund } from './refunds.service.js';
 
 const KEEP_HEADERS = ['x-chapa-signature', 'chapa-signature', 'user-agent', 'content-type', 'x-forwarded-for'];
@@ -51,10 +50,7 @@ export async function handleChapaWebhook({ headers, rawBody, body }) {
   }
 
   try {
-    if (event.startsWith('payout') || event.startsWith('transfer')) {
-      const payout = reference ? await prisma.sellerPayout.findUnique({ where: { reference: String(reference) }, select: { id: true } }) : null;
-      if (payout) await checkPayout(payout.id);
-    } else if (event.startsWith('refund')) {
+    if (event.startsWith('refund')) {
       const refund = await prisma.refund.findFirst({ where: { OR: [{ providerRef: String(reference ?? '') }, { reference: String(body?.merchant_reference ?? reference ?? '') }] }, select: { id: true } });
       if (refund) await checkRefund(refund.id);
     } else if (txRef) {

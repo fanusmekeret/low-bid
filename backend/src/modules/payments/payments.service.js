@@ -14,7 +14,6 @@ import { getSetting } from '../settings/settings.service.js';
 import { writeLedger } from './ledger.service.js';
 import { buildTxRef, chapaPhone, chapaText, classifyVerification, computeSettlement, ledger, receiptNumber } from './payment.rules.js';
 import { presentPayment } from './payment.presenter.js';
-import { createPayoutInTx } from './payouts.service.js';
 import { createRefundInTx } from './refunds.service.js';
 
 const FINAL = new Set(['PAID', 'REFUNDED', 'PARTIALLY_REFUNDED', 'FAILED']);
@@ -63,21 +62,21 @@ export const checkoutResponse = (p, reused) => ({ ...presentPayment(p), reused }
 
 /** The winner pays for the item. The amount is always computed here, never sent by the app. */
 export async function startWinnerCheckout(userId, auctionId) {
-  const [{ checkoutTimeoutMinutes }, fees] = await Promise.all([getSetting('payment.chapa'), getSetting('fees.commission')]);
+  const { checkoutTimeoutMinutes } = await getSetting('payment.chapa');
   const user = await prisma.user.findUniqueOrThrow({ where: { id: BigInt(userId) } });
 
   const { payment, reused } = await prisma.$transaction(async (tx) => {
     const rows = await tx.$queryRaw`SELECT id, UTC_TIMESTAMP(3) AS now FROM auction_results WHERE auction_id = ${BigInt(auctionId)} FOR UPDATE`;
     if (!rows.length) throw notFound('RESULT_NOT_FOUND', 'Nothing to pay for this auction');
     const now = new Date(rows[0].now);
-    const r = await tx.auctionResult.findUnique({ where: { id: rows[0].id }, include: { auction: { select: { sellerPrice: true } } } });
+    const r = await tx.auctionResult.findUnique({ where: { id: rows[0].id } });
     if (r.winnerId !== BigInt(userId)) throw forbidden('NOT_THE_WINNER', 'Only the winner can pay for this item');
     if (r.status === 'PAID' || r.status === 'FULFILLED') throw conflict('ALREADY_PAID', 'You have already paid for this item');
     if (r.status !== 'AWAITING_PAYMENT') throw conflict('PAYMENT_NOT_OPEN', 'This item can no longer be paid for');
     if (now >= r.paymentDeadline) throw conflict('PAYMENT_DEADLINE_PASSED', 'The payment deadline has passed');
 
     const open = await tx.payment.findFirst({ where: { resultId: r.id, userId: BigInt(userId), status: 'PENDING', expiresAt: { gt: now }, checkoutUrl: { not: null } }, orderBy: { id: 'desc' } });
-    const s = computeSettlement({ finalPrice: r.finalPrice, buyerPremium: r.buyerPremium, sellerPrice: r.auction.sellerPrice, sellerCommissionBp: fees.sellerCommissionBp });
+    const s = computeSettlement({ finalPrice: r.finalPrice, buyerPremium: r.buyerPremium });
     if (open && open.amount === s.cashDue) return { payment: open, reused: true };
 
     const p = await tx.payment.create({
@@ -154,7 +153,6 @@ async function titleFor(p, db = prisma) {
 }
 
 async function settle(txRef, v, body, source) {
-  const [fees] = await Promise.all([getSetting('fees.commission')]);
   const out = await prisma.$transaction(async (tx) => {
     const p = await lockPaymentByRef(tx, txRef);
     if (FINAL.has(p.status)) return { status: p.status, already: true };
@@ -204,8 +202,8 @@ async function settle(txRef, v, body, source) {
 
     // WINNING_BID
     const rows = await tx.$queryRaw`SELECT id FROM auction_results WHERE id = ${p.resultId} FOR UPDATE`;
-    const result = rows.length ? await tx.auctionResult.findUnique({ where: { id: p.resultId }, include: { auction: { include: { product: true } } } }) : null;
-    const s = result && computeSettlement({ finalPrice: result.finalPrice, buyerPremium: result.buyerPremium, sellerPrice: result.auction.sellerPrice, sellerCommissionBp: fees.sellerCommissionBp });
+    const result = rows.length ? await tx.auctionResult.findUnique({ where: { id: p.resultId } }) : null;
+    const s = result && computeSettlement({ finalPrice: result.finalPrice, buyerPremium: result.buyerPremium });
     const applicable = result
       && result.status === 'AWAITING_PAYMENT'
       && result.winnerId === p.userId
@@ -223,20 +221,8 @@ async function settle(txRef, v, body, source) {
 
     await writeLedger(tx, ledger.salePaid(s), refs);
     await tx.auctionResult.update({ where: { id: result.id }, data: { status: 'PAID', paidAt } });
-    await tx.commission.create({
-      data: {
-        paymentId: p.id,
-        sellerId: result.auction.product.sellerId,
-        saleAmount: result.finalPrice,
-        buyerPremium: result.buyerPremium,
-        sellerCommission: s.commission,
-        rateBasisPoints: fees.sellerCommissionBp,
-      },
-    });
-    await createPayoutInTx(tx, { result, payment: paid, settlement: s, sellerId: result.auction.product.sellerId, paidAt });
-    const seller = await tx.sellerProfile.findUnique({ where: { id: result.auction.product.sellerId }, select: { userId: true } });
+    // LOW BID now delivers the item; staff see it in the orders list (GET /admin/orders).
     await notify(p.userId, 'PAYMENT_SUCCESS', { title, amount: formatEtb(p.amount), receiptNo: paid.receiptNo }, { auctionId: result.auctionId, txRef }, tx);
-    await notify(seller.userId, 'SALE_PAID', { title, amount: formatEtb(s.sellerNet) }, { auctionId: result.auctionId }, tx);
     await recordAudit({ actorId: null, action: 'payment.settled', entity: 'payment', entityId: p.id, after: { source, amount: p.amount, receiptNo: paid.receiptNo } }, tx);
     effects.events.push({ userId: p.userId, payload: { txRef, status: 'PAID', purpose: 'WINNING_BID', auctionId: result.auctionId, receiptNo: paid.receiptNo } });
     return { status: 'PAID', settled: true, effects };

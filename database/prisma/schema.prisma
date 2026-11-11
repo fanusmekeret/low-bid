@@ -43,12 +43,6 @@ enum SellerStatus {
   SUSPENDED
 }
 
-enum VerificationStatus {
-  PENDING
-  APPROVED
-  REJECTED
-}
-
 enum ProductCondition {
   NEW
   LIKE_NEW
@@ -58,16 +52,12 @@ enum ProductCondition {
 }
 
 enum ProductStatus {
-  DRAFT
-  PENDING_REVIEW
-  APPROVED
-  REJECTED
+  DRAFT    // being written by LOW BID staff
+  APPROVED // published: can be auctioned
   ARCHIVED
 }
 
 enum AuctionStatus {
-  DRAFT
-  PENDING_APPROVAL
   SCHEDULED
   LIVE
   CLOSED
@@ -122,7 +112,6 @@ enum LedgerAccount {
   EXTERNAL
   ESCROW
   PLATFORM_REVENUE
-  SELLER_PAYABLE
   PROVIDER_FEES
 }
 
@@ -146,44 +135,21 @@ enum RefundKind {
   LATE_PAYMENT    // paid after the offer expired or went to another bidder
 }
 
-enum PayoutStatus {
-  PENDING
-  ON_HOLD
-  PROCESSING
-  PAID
-  FAILED
-  CANCELLED
-}
 
-enum PayoutMethod {
-  BANK_TRANSFER
-  TELEBIRR
-  CHAPA_TRANSFER
-}
 
 enum NotificationType {
   BID_CONFIRMED
   AUCTION_WON
   AUCTION_LOST
   AUCTION_ENDING_SOON
-  AUCTION_APPROVED
-  AUCTION_REJECTED
-  AUCTION_SOLD
-  AUCTION_UNSOLD
   AUCTION_CANCELLED
   PAYMENT_SUCCESS
   PAYMENT_FAILED
   PAYMENT_REMINDER
-  SELLER_APPROVED
-  SELLER_REJECTED
-  SELLER_SUSPENDED
-  PRODUCT_APPROVED
-  PRODUCT_REJECTED
-  PAYOUT_SENT
   REFUND_ISSUED
   PAYMENT_EXPIRED
   SECOND_CHANCE_OFFER
-  SALE_PAID
+  ITEM_DELIVERED  // LOW BID handed over or delivered the item
   SYSTEM
 }
 
@@ -220,7 +186,6 @@ model User {
   notifications    Notification[]
   auditLogs        AuditLog[]
   settingsUpdated  SystemSetting[]
-  sellerReviews    SellerVerification[] @relation("VerificationReviewer")
 
   @@index([status])
   @@map("users")
@@ -329,6 +294,8 @@ model UserDevice {
 
 // ───────────────────────────── Sellers ─────────────────────────────
 
+/// LOW BID itself is the only seller: one "house" profile owns every product. Kept as a table so
+/// listings keep an owner (shown as "Sold by LOW BID") and the model can grow later.
 model SellerProfile {
   id                BigInt       @id @default(autoincrement())
   userId            BigInt       @unique @map("user_id")
@@ -338,10 +305,6 @@ model SellerProfile {
   city              String       @db.VarChar(80)
   address           String?      @db.VarChar(255)
   bio               String?      @db.Text
-  payoutMethod      PayoutMethod @default(BANK_TRANSFER) @map("payout_method")
-  payoutBankCode    String?      @map("payout_bank_code") @db.VarChar(20)
-  payoutAccountName String?      @map("payout_account_name") @db.VarChar(150)
-  payoutAccountNo   String?      @map("payout_account_no") @db.VarChar(40)
   status            SellerStatus @default(PENDING)
   approvedAt        DateTime?    @map("approved_at") @db.DateTime(3)
   ratingAvg         Int          @default(0) @map("rating_avg") // x100, e.g. 465 = 4.65
@@ -350,32 +313,12 @@ model SellerProfile {
   updatedAt         DateTime     @updatedAt @map("updated_at") @db.DateTime(3)
 
   user          User                 @relation(fields: [userId], references: [id], onDelete: Restrict)
-  verifications SellerVerification[]
   products      Product[]
-  payouts       SellerPayout[]
 
   @@index([status])
   @@map("seller_profiles")
 }
 
-model SellerVerification {
-  id              BigInt             @id @default(autoincrement())
-  sellerId        BigInt             @map("seller_id")
-  documentType    String             @map("document_type") @db.VarChar(40) // FAYDA_ID, PASSPORT, TRADE_LICENSE, TIN_CERT
-  documentKey     String             @map("document_key") @db.VarChar(300) // private object-storage key
-  status          VerificationStatus @default(PENDING)
-  rejectionReason String?            @map("rejection_reason") @db.VarChar(500)
-  reviewedById    BigInt?            @map("reviewed_by")
-  reviewedAt      DateTime?          @map("reviewed_at") @db.DateTime(3)
-  createdAt       DateTime           @default(now()) @map("created_at") @db.DateTime(3)
-
-  seller     SellerProfile @relation(fields: [sellerId], references: [id], onDelete: Cascade)
-  reviewedBy User?         @relation("VerificationReviewer", fields: [reviewedById], references: [id], onDelete: SetNull)
-
-  @@index([sellerId])
-  @@index([status])
-  @@map("seller_verifications")
-}
 
 // ──────────────────────── Catalog & products ────────────────────────
 
@@ -449,8 +392,8 @@ model ProductImage {
 model Auction {
   id                 BigInt        @id @default(autoincrement())
   productId          BigInt        @map("product_id")
-  status             AuctionStatus @default(DRAFT)
-  sellerPrice        BigInt        @map("seller_price")    // santim; what the seller is paid for the item (before commission), whatever the winning bid
+  status             AuctionStatus @default(SCHEDULED)
+  itemCost           BigInt        @map("item_cost")       // santim; what the item costs LOW BID (for reporting: fees + winning bid vs cost)
   marketValue        BigInt?       @map("market_value")    // santim; retail value shown to bidders
   bidFee             BigInt        @map("bid_fee")         // santim; paid through Chapa for every bid
   minBid             BigInt        @default(1) @map("min_bid") // santim; lowest amount a bid may be (default 0.01 ETB)
@@ -537,7 +480,8 @@ model AuctionResult {
   offerHistory    Json?          @map("offer_history") // earlier winners who did not pay
   paymentDeadline DateTime?      @map("payment_deadline") @db.DateTime(3)
   paidAt          DateTime?      @map("paid_at") @db.DateTime(3)
-  fulfilledAt     DateTime?      @map("fulfilled_at") @db.DateTime(3)
+  fulfilledAt     DateTime?      @map("fulfilled_at") @db.DateTime(3) // LOW BID delivered or handed over the item
+  confirmedAt     DateTime?      @map("confirmed_at") @db.DateTime(3) // the winner confirmed receipt (closes refund requests)
   createdAt       DateTime       @default(now()) @map("created_at") @db.DateTime(3)
   updatedAt       DateTime       @updatedAt @map("updated_at") @db.DateTime(3)
 
@@ -582,7 +526,6 @@ model Payment {
   bid          Bid?             // set when purpose = BID_FEE
   webhooks     PaymentWebhook[]
   transactions Transaction[]
-  commission   Commission?
   refunds      Refund[]
 
   @@index([resultId])
@@ -619,7 +562,6 @@ model Transaction {
   groupId     String          @map("group_id") @db.Char(26) // ULID
   paymentId   BigInt?         @map("payment_id")
   refundId    BigInt?         @map("refund_id")
-  payoutId    BigInt?         @map("payout_id")
   account     LedgerAccount
   direction   LedgerDirection
   amount      BigInt          // santim, always positive
@@ -629,7 +571,6 @@ model Transaction {
 
   payment Payment?      @relation(fields: [paymentId], references: [id], onDelete: Restrict)
   refund  Refund?       @relation(fields: [refundId], references: [id], onDelete: Restrict)
-  payout  SellerPayout? @relation(fields: [payoutId], references: [id], onDelete: Restrict)
 
   @@index([groupId])
   @@index([account, createdAt])
@@ -637,22 +578,6 @@ model Transaction {
   @@map("transactions")
 }
 
-model Commission {
-  id              BigInt   @id @default(autoincrement())
-  paymentId       BigInt   @unique @map("payment_id")
-  sellerId        BigInt   @map("seller_id")
-  saleAmount      BigInt   @map("sale_amount")
-  buyerPremium    BigInt   @default(0) @map("buyer_premium")
-  sellerCommission BigInt  @default(0) @map("seller_commission")
-  rateBasisPoints Int      @map("rate_basis_points") // 500 = 5.00%
-  createdAt       DateTime @default(now()) @map("created_at") @db.DateTime(3)
-
-  payment Payment @relation(fields: [paymentId], references: [id], onDelete: Restrict)
-
-  @@index([sellerId])
-  @@index([createdAt])
-  @@map("commissions")
-}
 
 model Refund {
   id             BigInt       @id @default(autoincrement())
@@ -683,36 +608,6 @@ model Refund {
   @@map("refunds")
 }
 
-model SellerPayout {
-  id           BigInt       @id @default(autoincrement())
-  sellerId     BigInt       @map("seller_id")
-  resultId     BigInt?      @unique @map("result_id")
-  paymentId    BigInt?      @map("payment_id")
-  reference    String       @unique @db.VarChar(64) // ours, sent to Chapa as the transfer reference
-  grossAmount  BigInt       @map("gross_amount")
-  commission   BigInt
-  netAmount    BigInt       @map("net_amount")
-  method       PayoutMethod
-  status       PayoutStatus @default(PENDING)
-  releaseAfter DateTime     @map("release_after") @db.DateTime(3) // end of dispute window
-  bankCode     String?      @map("bank_code") @db.VarChar(20)  // snapshot of the seller's details at sale time
-  accountName  String?      @map("account_name") @db.VarChar(150)
-  accountNo    String?      @map("account_no") @db.VarChar(40)
-  providerRef  String?      @map("provider_ref") @db.VarChar(100)
-  processedById BigInt?     @map("processed_by")
-  notes        String?      @db.VarChar(500)
-  paidAt       DateTime?    @map("paid_at") @db.DateTime(3)
-  failureReason String?     @map("failure_reason") @db.VarChar(500)
-  createdAt    DateTime     @default(now()) @map("created_at") @db.DateTime(3)
-  updatedAt    DateTime     @updatedAt @map("updated_at") @db.DateTime(3)
-
-  seller       SellerProfile @relation(fields: [sellerId], references: [id], onDelete: Restrict)
-  transactions Transaction[]
-
-  @@index([sellerId, status])
-  @@index([status, releaseAfter])
-  @@map("seller_payouts")
-}
 
 // ─────────────────────── Notifications & ops ───────────────────────
 

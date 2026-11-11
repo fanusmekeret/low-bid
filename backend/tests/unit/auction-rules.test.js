@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { describe, it } from 'bun:test';
 import {
   bidderAlias, closeOutcome, defaultBiddingTerms, evaluateBid, myAuctionStatus, pickWinner, rankBids,
-  scheduleOnApproval, validateAuctionDraft, validateBiddingTerms,
+  validateAuctionDraft, validateBiddingTerms,
 } from '../../src/modules/auctions/auction.rules.js';
 
 const ETB = (n) => BigInt(Math.round(n * 100));
@@ -10,7 +10,7 @@ const T0 = new Date('2026-11-08T12:00:00.000Z');
 const at = (ms) => new Date(T0.getTime() + ms);
 
 const live = (over = {}) => ({
-  status: 'LIVE', startsAt: at(-3_600_000), endsAt: at(3_600_000), now: T0, sellerUserId: 1n,
+  status: 'LIVE', startsAt: at(-3_600_000), endsAt: at(3_600_000), now: T0,
   minBid: 1n, maxBid: ETB(145_000), bidStep: 1n, maxBidsPerUser: 50, ...over,
 });
 const bid = (over = {}) => ({ bidderId: 9n, amount: ETB(37.45), myOpenAmounts: [], bidderBlock: null, ...over });
@@ -45,7 +45,6 @@ describe('evaluateBid: rejecting', () => {
   });
   it('one millisecond before the end still counts', () => assert.equal(evaluateBid(live({ endsAt: at(1) }), bid()).ok, true));
   it('rejects bids before the start', () => assert.equal(code({ status: 'SCHEDULED', startsAt: at(1) }), 'AUCTION_NOT_STARTED'));
-  it('stops sellers bidding on their own items', () => assert.equal(code({}, { bidderId: 1n }), 'SELLER_CANNOT_BID'));
   it('passes on account blocks', () => assert.equal(code({}, { bidderBlock: { code: 'PHONE_NOT_VERIFIED', message: 'x' } }), 'PHONE_NOT_VERIFIED'));
   it('enforces the range', () => {
     assert.equal(code({ minBid: ETB(1) }, { amount: ETB(0.99) }), 'BID_OUT_OF_RANGE');
@@ -113,29 +112,33 @@ describe('closeOutcome', () => {
 
 describe('auction drafts and bidding terms', () => {
   const rules = { minDurationHours: 1, maxDurationDays: 30 };
-  const draft = (over = {}) => ({ sellerPrice: ETB(10_000), marketValue: null, startsAt: at(3_600_000), durationMinutes: 24 * 60, now: T0, rules, ...over });
+  const draft = (over = {}) => ({ itemCost: ETB(10_000), marketValue: null, startsAt: at(3_600_000), durationMinutes: 24 * 60, now: T0, rules, ...over });
   const paths = (over) => validateAuctionDraft(draft(over)).map((e) => e.path);
 
   it('accepts a normal auction', () => assert.deepEqual(paths(), []));
-  it('needs time for approval before starting', () => assert.deepEqual(paths({ startsAt: at(5 * 60_000) }), ['startsAt']));
+  it('can start now, but not in the past', () => {
+    assert.deepEqual(paths({ startsAt: T0 }), []);
+    assert.deepEqual(paths({ startsAt: at(-30_000) }), [], 'a few seconds ago still means now');
+    assert.deepEqual(paths({ startsAt: at(-5 * 60_000) }), ['startsAt']);
+  });
   it('enforces duration limits', () => {
     assert.deepEqual(paths({ durationMinutes: 30 }), ['durationMinutes']);
     assert.deepEqual(paths({ durationMinutes: 31 * 24 * 60 }), ['durationMinutes']);
   });
-  it('needs a sensible seller price and retail value', () => {
-    assert.deepEqual(paths({ sellerPrice: ETB(99) }), ['sellerPrice']);
+  it('needs a sensible item cost and retail value', () => {
+    assert.deepEqual(paths({ itemCost: ETB(99) }), ['itemCost']);
     assert.deepEqual(paths({ marketValue: ETB(9_999) }), ['marketValue']);
     assert.deepEqual(paths({ marketValue: ETB(12_000) }), []);
   });
 
   const settings = { defaultBidFeeMinor: '1000', minBidMinor: '1', bidStepMinor: '1', maxBidsPerUser: 50 };
-  it('defaults: platform fee, bids from 0.01 ETB up to the seller price', () => {
-    const t = defaultBiddingTerms({ sellerPrice: ETB(145_000), categoryBidFee: 0n, settings });
+  it('defaults: platform fee, bids from 0.01 ETB up to the item cost', () => {
+    const t = defaultBiddingTerms({ itemCost: ETB(145_000), categoryBidFee: 0n, settings });
     assert.deepEqual(t, { bidFee: ETB(10), minBid: 1n, maxBid: ETB(145_000), bidStep: 1n, minPaidBids: 0, maxBidsPerUser: 50 });
     assert.deepEqual(validateBiddingTerms(t), []);
   });
   it('uses the category fee when set (e.g. 50 ETB for vehicles)', () => {
-    assert.equal(defaultBiddingTerms({ sellerPrice: ETB(1_000_000), categoryBidFee: ETB(50), settings }).bidFee, ETB(50));
+    assert.equal(defaultBiddingTerms({ itemCost: ETB(1_000_000), categoryBidFee: ETB(50), settings }).bidFee, ETB(50));
   });
   it('validates admin changes to the terms', () => {
     const ok = { bidFee: ETB(10), minBid: 1n, maxBid: ETB(100), bidStep: 1n, minPaidBids: 0, maxBidsPerUser: 5 };
@@ -146,16 +149,6 @@ describe('auction drafts and bidding terms', () => {
     assert.deepEqual(p({ bidStep: 100n, minBid: 150n }), ['minBid']);
     assert.deepEqual(p({ maxBidsPerUser: 0 }), ['maxBidsPerUser']);
   });
-});
-
-describe('scheduling helpers', () => {
-  it('moves a late-approved auction forward and keeps its length', () => {
-    const r = scheduleOnApproval({ startsAt: at(-600_000), endsAt: at(3_000_000), now: T0 });
-    assert.equal(r.startsNow, true);
-    assert.deepEqual(r.startsAt, T0);
-    assert.deepEqual(r.endsAt, at(3_600_000));
-  });
-  it('leaves a future auction alone', () => assert.equal(scheduleOnApproval({ startsAt: at(1), endsAt: at(2), now: T0 }).startsNow, false));
 });
 
 describe('bidder aliases and my status', () => {

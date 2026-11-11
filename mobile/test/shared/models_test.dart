@@ -47,7 +47,7 @@ void main() {
       'bidding': {'bidFee': money(5000), 'minBid': money(1), 'maxBid': money(120000000), 'bidStep': money(1), 'maxBidsPerUser': 50, 'minPaidBids': 0},
       'marketValue': money(135000000),
       'result': {'outcome': 'SOLD', 'finalPrice': money(245), 'winnerAlias': 'A***e · 7F3C', 'paidBids': 3, 'uniqueBids': 2},
-      'viewer': {'isWatching': true, 'isSeller': false, 'myBidCount': 2, 'myPendingCount': 1, 'myStatus': 'LOST'},
+      'viewer': {'isWatching': true, 'myBidCount': 2, 'myPendingCount': 1, 'myStatus': 'LOST'},
     });
     expect(d.bidding.bidFee.toApiString(), '50');
     expect(d.bidding.minBid.toApiString(), '0.01');
@@ -122,30 +122,5 @@ void main() {
     });
     expect(c.leaves.map((e) => e.id), [2, 4]);
     expect(c.children[1].name('am'), 'Appliances'); // falls back to English
-  });
-
-  test('product reorder keeps everything else', () {
-    final p = ProductModel.fromJson({
-      'id': '1',
-      'status': 'APPROVED',
-      'title': 'iPad Air',
-      'description': 'x' * 30,
-      'condition': 'NEW',
-      'location': 'Adama',
-      'highlights': ['M2'],
-      'specs': [],
-      'category': {'id': 9},
-      'images': [
-        {'id': 'a', 'urls': {'sm': '1', 'md': '1', 'lg': '1'}},
-        {'id': 'b', 'urls': {'sm': '2', 'md': '2', 'lg': '2'}},
-      ],
-      'editable': true,
-      'auctions': [],
-    });
-    expect(p.canAuction, isTrue);
-    final r = p.withImages(p.images.reversed.toList());
-    expect(r.images.map((i) => i.id), ['b', 'a']);
-    expect(r.title, p.title);
-    expect(r.categoryId, 9);
   });
 }

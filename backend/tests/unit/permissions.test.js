@@ -5,7 +5,8 @@ import { PERMISSION_DESCRIPTIONS, PERMISSIONS, ROLE_DEFINITIONS, ROLES } from '.
 const role = (code) => ROLE_DEFINITIONS.find((r) => r.code === code);
 
 describe('role definitions', () => {
-  it('defines all six required roles', () => {
+  it('defines every role (no seller role: LOW BID is the only seller)', () => {
+    assert.ok(!Object.values(ROLES).includes('seller'));
     assert.deepEqual(ROLE_DEFINITIONS.map((r) => r.code).sort(), Object.values(ROLES).sort());
   });
 

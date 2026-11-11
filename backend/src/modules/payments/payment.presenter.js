@@ -47,24 +47,3 @@ export function presentRefund(r) {
     createdAt: r.createdAt,
   };
 }
-
-export function presentPayout(p, { full = false } = {}) {
-  return {
-    id: p.id.toString(),
-    reference: p.reference,
-    status: p.status,
-    method: p.method,
-    grossAmount: moneyDto(p.grossAmount),
-    commission: moneyDto(p.commission),
-    netAmount: moneyDto(p.netAmount),
-    releaseAfter: p.releaseAfter,
-    paidAt: p.paidAt,
-    providerRef: p.providerRef,
-    failureReason: p.failureReason,
-    resultId: p.resultId?.toString() ?? null,
-    account: full
-      ? { bankCode: p.bankCode, accountName: p.accountName, accountNo: p.accountNo }
-      : { bankCode: p.bankCode, accountName: p.accountName, accountNo: p.accountNo ? `•••• ${p.accountNo.slice(-4)}` : null },
-    createdAt: p.createdAt,
-  };
-}

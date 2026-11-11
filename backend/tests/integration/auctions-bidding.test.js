@@ -21,7 +21,7 @@ describe.skipIf(!hasTestDb)('lowest unique bid auctions (MySQL + fake Chapa)', (
   let signAccessToken;
   let DEMO_SPECS;
   let admin;
-  let seller;
+  let listing;
   let bidders; // [{ user, token }]
   let phoneSeq = 0;
 
@@ -56,24 +56,25 @@ describe.skipIf(!hasTestDb)('lowest unique bid auctions (MySQL + fake Chapa)', (
     return out;
   }
 
-  async function makeSeller(categorySlug = 'mobile-phones-tablets') {
-    const [s] = await makeUsers(1, ['buyer', 'bidder', 'seller']);
-    const profile = await prisma.sellerProfile.create({ data: { userId: s.user.id, businessName: `Shop ${s.user.id}`, city: 'Addis Ababa', status: 'APPROVED' } });
+  /** A published LOW BID listing (LOW BID is the only seller). */
+  async function makeListing(categorySlug = 'mobile-phones-tablets') {
+    const house = await (await import('../../src/modules/house/house.service.js')).getHouseSeller();
     const category = await prisma.category.findUnique({ where: { slug: categorySlug } });
+    phoneSeq += 1;
     const product = await prisma.product.create({
       data: {
-        sellerId: profile.id, categoryId: category.id, title: `Samsung Galaxy S24 Ultra ${s.user.id}`, condition: 'NEW', location: 'Bole',
+        sellerId: house.id, categoryId: category.id, title: `Samsung Galaxy S24 Ultra ${phoneSeq}`, condition: 'NEW', location: 'Bole',
         description: 'Sealed box, dual SIM, international version.', status: 'APPROVED', attributes: DEMO_SPECS['galaxy-s24-ultra'],
       },
     });
-    return { ...s, profile, product, category };
+    return { product, category };
   }
 
   async function liveAuction(over = {}) {
     const now = Date.now();
     return prisma.auction.create({
       data: {
-        productId: seller.product.id, status: 'LIVE', sellerPrice: 12_000_000n, marketValue: 13_500_000n,
+        productId: listing.product.id, status: 'LIVE', itemCost: 12_000_000n, marketValue: 13_500_000n,
         bidFee: 1000n, minBid: 1n, maxBid: 12_000_000n, bidStep: 1n, maxBidsPerUser: 5,
         startsAt: new Date(now - 3_600_000), endsAt: new Date(now + 3_600_000), ...over,
       },
@@ -101,7 +102,7 @@ describe.skipIf(!hasTestDb)('lowest unique bid auctions (MySQL + fake Chapa)', (
     ({ DEMO_SPECS } = await import('../../src/db/demo/demo-specs.js'));
     events = (await import('../../src/sockets/realtime.js')).captureRealtime();
     [admin] = await makeUsers(1, ['buyer', 'bidder', 'super_admin']);
-    seller = await makeSeller();
+    listing = await makeListing();
     bidders = await makeUsers(12);
   });
   beforeEach(() => { events.length = 0; });
@@ -112,53 +113,63 @@ describe.skipIf(!hasTestDb)('lowest unique bid auctions (MySQL + fake Chapa)', (
 
   // ─────────────── Creating and approving ───────────────
 
-  describe('seller creates, admin sets terms and approves', () => {
+  describe('LOW BID staff create and schedule auctions', () => {
     let auctionId;
+    let own;
+    beforeAll(async () => { own = await makeListing(); });
 
-    it('validates the schedule and price', async () => {
-      const res = await api().post('/api/v1/seller/auctions').set(auth(seller.token)).send({
-        productId: String(seller.product.id), sellerPrice: '50', startsAt: new Date(Date.now() + 120_000).toISOString(), durationMinutes: 120,
+    it('validates the schedule and the item cost', async () => {
+      const res = await api().post('/api/v1/admin/auctions').set(auth(admin.token)).send({
+        productId: String(own.product.id), itemCost: '50', startsAt: new Date(Date.now() - 3_600_000).toISOString(), durationMinutes: 120,
       });
       assert.equal(res.status, 400);
       const paths = res.body.error.details.map((d) => d.path);
-      assert.ok(paths.includes('startsAt') && paths.includes('sellerPrice'));
+      assert.ok(paths.includes('startsAt') && paths.includes('itemCost'));
     });
 
-    it('creates an auction with default bidding terms and locks the listing', async () => {
-      const res = await api().post('/api/v1/seller/auctions').set(auth(seller.token)).send({
-        productId: String(seller.product.id), sellerPrice: '120000', marketValue: '135000',
+    it('creates and schedules an auction with default bidding terms and locks the listing', async () => {
+      const res = await api().post('/api/v1/admin/auctions').set(auth(admin.token)).send({
+        productId: String(own.product.id), itemCost: '120000', marketValue: '135000',
         startsAt: new Date(Date.now() + 3_600_000).toISOString(), durationMinutes: 24 * 60,
       });
       assert.equal(res.status, 201, JSON.stringify(res.body));
       const a = res.body.data;
-      assert.equal(a.status, 'PENDING_APPROVAL');
+      assert.equal(a.status, 'SCHEDULED', 'no approval step: LOW BID schedules it directly');
       assert.equal(a.bidFee.etb, '10.00', 'platform default fee');
       assert.equal(a.minBid.etb, '0.01');
-      assert.equal(a.maxBid.etb, '120000.00', 'bids up to the seller price');
+      assert.equal(a.maxBid.etb, '120000.00', 'bids up to the item cost');
       auctionId = a.id;
-
-      const edit = await api().patch(`/api/v1/seller/products/${seller.product.id}`).set(auth(seller.token)).send({ location: 'Somewhere else' });
+      const edit = await api().patch(`/api/v1/admin/products/${own.product.id}`).set(auth(admin.token)).send({ location: 'Somewhere else' });
       assert.equal(edit.body.error.code, 'PRODUCT_LOCKED');
+      const again = await api().post('/api/v1/admin/auctions').set(auth(admin.token)).send({
+        productId: String(own.product.id), itemCost: '120000', startsAt: new Date(Date.now() + 3_600_000).toISOString(), durationMinutes: 60,
+      });
+      assert.equal(again.body.error.code, 'AUCTION_ALREADY_EXISTS');
     });
 
-    it('lets an admin change the terms before bidding opens', async () => {
+    it('lets staff change the terms before bidding opens', async () => {
       const res = await api().patch(`/api/v1/admin/auctions/${auctionId}`).set(auth(admin.token)).send({ bidFee: '25', minPaidBids: 3, maxBidsPerUser: 10 });
       assert.equal(res.status, 200, JSON.stringify(res.body));
       assert.equal(res.body.data.bidFee.etb, '25.00');
       assert.equal(res.body.data.minPaidBids, 3);
-      const bad = await api().patch(`/api/v1/admin/auctions/${auctionId}`).set(auth(admin.token)).send({ bidFee: '0.50' });
-      assert.equal(bad.status, 400);
+      assert.equal((await api().patch(`/api/v1/admin/auctions/${auctionId}`).set(auth(admin.token)).send({ bidFee: '0.50' })).status, 400);
     });
 
-    it('is hidden from buyers until approved, then scheduled', async () => {
-      assert.equal((await api().get(`/api/v1/auctions/${auctionId}`)).status, 404);
-      const res = await api().post(`/api/v1/admin/auctions/${auctionId}/approve`).set(auth(admin.token));
-      assert.equal(res.body.data.status, 'SCHEDULED');
-      assert.ok(await prisma.notification.findFirst({ where: { userId: seller.user.id, type: 'AUCTION_APPROVED' } }));
-    });
-
-    it('rejects bids before the start', async () => {
+    it('is visible to buyers once scheduled, but rejects bids before the start', async () => {
+      assert.equal((await api().get(`/api/v1/auctions/${auctionId}`)).status, 200);
       assert.equal((await bid(auctionId, bidders[0].token, 5)).body.error.code, 'AUCTION_NOT_STARTED');
+    });
+
+    it('keeps auction management away from buyers', async () => {
+      assert.equal((await api().post('/api/v1/admin/auctions').set(auth(bidders[0].token)).send({})).status, 403);
+    });
+
+    it('starts straight away when the start time is now', async () => {
+      const other = await makeListing();
+      const res = await api().post('/api/v1/admin/auctions').set(auth(admin.token)).send({
+        productId: String(other.product.id), itemCost: '5000', startsAt: new Date().toISOString(), durationMinutes: 60,
+      });
+      assert.equal(res.body.data.status, 'LIVE');
     });
   });
 
@@ -200,7 +211,6 @@ describe.skipIf(!hasTestDb)('lowest unique bid auctions (MySQL + fake Chapa)', (
       assert.equal((await bid(a.id, bidders[0].token, '3.45')).body.error.code, 'DUPLICATE_BID_AMOUNT');
       assert.equal((await bid(a.id, bidders[0].token, '0')).body.error.code, 'BID_OUT_OF_RANGE');
       assert.equal((await bid(a.id, bidders[0].token, '120000.01')).body.error.code, 'BID_OUT_OF_RANGE');
-      assert.equal((await bid(a.id, seller.token, '1')).body.error.code, 'SELLER_CANNOT_BID');
       for (const amt of ['1', '2', '4', '5', '6']) assert.equal((await bid(a.id, bidders[1].token, amt)).status, 201);
       assert.equal((await bid(a.id, bidders[1].token, '7')).body.error.code, 'BID_LIMIT_REACHED', 'five bids per person on this auction');
     });
@@ -239,8 +249,8 @@ describe.skipIf(!hasTestDb)('lowest unique bid auctions (MySQL + fake Chapa)', (
       assert.equal(page.body.data.viewer.myBidCount, 1);
       assert.equal(page.body.data.viewer.myStatus, 'BIDDING');
       assert.equal(page.body.data.bidding.bidFee.etb, '10.00');
-      const sellerView = await api().get(`/api/v1/seller/auctions/${a.id}`).set(auth(seller.token));
-      assert.equal(sellerView.body.data.bids, null, 'not even the seller sees amounts');
+      const staffView = await api().get(`/api/v1/admin/auctions/${a.id}`).set(auth(admin.token));
+      assert.ok(!JSON.stringify(staffView.body).includes('"3.45"'), 'the staff auction view has no bid amounts either');
     });
 
     it('shows me my own bids', async () => {
@@ -385,7 +395,7 @@ describe.skipIf(!hasTestDb)('lowest unique bid auctions (MySQL + fake Chapa)', (
       const res = await api().get('/api/v1/auctions?status=live&category=mobile-phones-tablets&pageSize=50');
       const c = res.body.data.find((x) => x.id === String(a.id));
       assert.ok(c);
-      for (const f of ['price', 'marketValue', 'bidding', 'sellerPrice']) assert.ok(!(f in c));
+      for (const f of ['price', 'marketValue', 'bidding', 'itemCost']) assert.ok(!(f in c));
       assert.equal(c.bidCount, 1);
     });
 

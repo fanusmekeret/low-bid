@@ -13,7 +13,6 @@ export function presentUser(user, roles = [], permissions = []) {
     phoneVerifiedAt: user.phoneVerifiedAt,
     roles,
     permissions: [...permissions].sort(),
-    seller: user.sellerProfile ? { id: user.sellerProfile.id.toString(), status: user.sellerProfile.status, businessName: user.sellerProfile.businessName } : null,
     createdAt: user.createdAt,
   };
 }

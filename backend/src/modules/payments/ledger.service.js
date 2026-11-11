@@ -19,7 +19,6 @@ export async function writeLedger(tx, lines, refs = {}) {
       memo: l.memo?.slice(0, 255),
       paymentId: refs.paymentId ?? null,
       refundId: refs.refundId ?? null,
-      payoutId: refs.payoutId ?? null,
     })),
   });
   return groupId;

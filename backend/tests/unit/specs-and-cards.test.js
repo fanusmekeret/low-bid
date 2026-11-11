@@ -35,7 +35,7 @@ describe('auction presenters', () => {
   const imageUrls = (key) => ({ sm: `https://cdn.test/${key}_sm.webp`, md: `https://cdn.test/${key}_md.webp`, lg: `https://cdn.test/${key}_lg.webp` });
   const auction = {
     id: 7n, status: 'LIVE', startsAt: new Date(), endsAt: new Date(Date.now() + 60_000),
-    isFeatured: true, bidCount: 14, sellerPrice: 14500000n, marketValue: 16400000n,
+    isFeatured: true, bidCount: 14, itemCost: 14500000n, marketValue: 16400000n,
     bidFee: 1000n, minBid: 1n, maxBid: 14500000n, bidStep: 1n, minPaidBids: 0, maxBidsPerUser: 50, currentWinnerId: null,
     product: {
       title: 'iPhone 15 Pro Max 256GB', condition: 'LIKE_NEW', location: 'Bole, Addis Ababa', description: 'Battery 94%.',
@@ -49,7 +49,7 @@ describe('auction presenters', () => {
   it('never puts a price on a card', () => {
     const card = presentAuctionCard(auction, { imageUrls });
     const text = JSON.stringify(card, (_k, v) => (typeof v === 'bigint' ? v.toString() : v));
-    for (const field of ['price', 'marketValue', 'sellerPrice', 'bidding', 'bidFee']) assert.ok(!(field in card), field);
+    for (const field of ['price', 'marketValue', 'itemCost', 'bidding', 'bidFee']) assert.ok(!(field in card), field);
     assert.ok(!text.includes('16400000') && !text.includes('14500000'), 'no price values on the card');
     assert.deepEqual(card.highlights, ['256GB', '6.7" 120 Hz OLED', 'Battery 94%']);
     assert.ok(card.endsAt, 'card keeps the countdown');
@@ -62,7 +62,7 @@ describe('auction presenters', () => {
     assert.equal(d.bidding.minBid.etb, '0.01');
     assert.equal(d.bidding.maxBid.etb, '145000.00');
     assert.equal(d.marketValue.etb, '164000.00');
-    assert.ok(!('sellerPrice' in d), 'the seller price is not public');
+    assert.ok(!('itemCost' in d), 'the item cost is not public');
     assert.ok(!('currentPrice' in d) && !('price' in d));
     assert.ok(d.specs.length >= 5);
     assert.equal(d.images.length, 1);

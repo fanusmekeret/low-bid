@@ -1,6 +1,7 @@
-// Loads demo sellers, bidders, products, auctions and bids for development and demos.
+// Loads demo bidders and LOW BID listings, auctions and bids for development and demos.
 //   bun run db:seed:demo            # replace previous demo data
-// Re-running wipes earlier demo data first (only accounts with demo phone numbers +25190000…).
+// Re-running wipes earlier demo data first: accounts with demo phone numbers (+25190000…) and
+// LOW BID listings whose titles match the demo catalog.
 // Refuses to run when NODE_ENV=production.
 import { randomBytes } from 'node:crypto';
 import { env } from '../config/env.js';
@@ -13,10 +14,11 @@ import { SETTING_DEFINITIONS } from '../modules/settings/settings.definitions.js
 import { deleteProductImageFiles, storeProductImages } from '../services/media/productImages.js';
 import { normalizeEthiopianPhone } from '../utils/phone.js';
 import { buildBids, rng } from './demo/bid-history.js';
-import { DEMO_BIDDERS, DEMO_ITEMS, DEMO_SELLERS } from './demo/demo-catalog.js';
+import { DEMO_BIDDERS, DEMO_ITEMS } from './demo/demo-catalog.js';
 import { makeDemoPhoto } from './demo/demo-photos.js';
 import { DEMO_SPECS } from './demo/demo-specs.js';
-import { seedCategories, seedRbac, seedSettings } from './seed.js';
+import { seedCategories, seedHouseSeller, seedRbac, seedSettings } from './seed.js';
+import { getHouseSeller } from '../modules/house/house.service.js';
 
 const DEMO_PHONE_PREFIX = '+25190000';
 const MINUTE = 60_000;
@@ -28,39 +30,35 @@ function phoneOf(local) {
 }
 
 async function wipeDemoData() {
+  const house = await getHouseSeller();
   const users = await prisma.user.findMany({ where: { phone: { startsWith: DEMO_PHONE_PREFIX } }, select: { id: true } });
-  if (users.length === 0) return 0;
   const userIds = users.map((u) => u.id);
-  const sellerIds = (await prisma.sellerProfile.findMany({ where: { userId: { in: userIds } }, select: { id: true } })).map((s) => s.id);
-  const productIds = (await prisma.product.findMany({ where: { sellerId: { in: sellerIds } }, select: { id: true } })).map((p) => p.id);
+  const productIds = (await prisma.product.findMany({ where: { sellerId: house.id, title: { in: DEMO_ITEMS.map((i) => i.title) } }, select: { id: true } })).map((p) => p.id);
+  if (userIds.length === 0 && productIds.length === 0) return 0;
   const auctionIds = (await prisma.auction.findMany({ where: { productId: { in: productIds } }, select: { id: true } })).map((a) => a.id);
   const imageKeys = (await prisma.productImage.findMany({ where: { productId: { in: productIds } }, select: { key: true } })).map((i) => i.key);
   const paymentIds = (await prisma.payment.findMany({
     where: { OR: [{ userId: { in: userIds } }, { auctionId: { in: auctionIds } }] },
     select: { id: true },
   })).map((p) => p.id);
-  const payoutIds = (await prisma.sellerPayout.findMany({ where: { sellerId: { in: sellerIds } }, select: { id: true } })).map((p) => p.id);
   // Money records first: they reference results, bids and users.
   await prisma.$transaction([
-    prisma.transaction.deleteMany({ where: { OR: [{ paymentId: { in: paymentIds } }, { payoutId: { in: payoutIds } }] } }),
+    prisma.transaction.deleteMany({ where: { paymentId: { in: paymentIds } } }),
     prisma.refund.deleteMany({ where: { paymentId: { in: paymentIds } } }),
-    prisma.commission.deleteMany({ where: { paymentId: { in: paymentIds } } }),
-    prisma.sellerPayout.deleteMany({ where: { id: { in: payoutIds } } }),
+    prisma.bid.deleteMany({ where: { OR: [{ auctionId: { in: auctionIds } }, { bidderId: { in: userIds } }] } }),
     prisma.payment.deleteMany({ where: { id: { in: paymentIds } } }),
   ]);
 
   await prisma.$transaction([
-    prisma.bid.deleteMany({ where: { OR: [{ auctionId: { in: auctionIds } }, { bidderId: { in: userIds } }] } }),
     prisma.auctionWatchlist.deleteMany({ where: { OR: [{ auctionId: { in: auctionIds } }, { userId: { in: userIds } }] } }),
     prisma.auctionResult.deleteMany({ where: { auctionId: { in: auctionIds } } }),
     prisma.auction.deleteMany({ where: { id: { in: auctionIds } } }),
     prisma.product.deleteMany({ where: { id: { in: productIds } } }), // images cascade
-    prisma.sellerProfile.deleteMany({ where: { id: { in: sellerIds } } }), // verifications cascade
     prisma.notification.deleteMany({ where: { userId: { in: userIds } } }),
     prisma.user.deleteMany({ where: { id: { in: userIds } } }), // roles, tokens, OTPs, devices cascade
   ]);
   await deleteProductImageFiles(imageKeys.filter((k) => k.startsWith('products/')));
-  return users.length;
+  return userIds.length + productIds.length;
 }
 
 async function createUser({ phone, firstName, lastName }, roleCodes, passwordHash) {
@@ -100,38 +98,20 @@ async function main() {
   await seedRbac();
   await seedCategories();
   await seedSettings();
+  await seedHouseSeller();
+  const house = await getHouseSeller();
 
   const removed = await wipeDemoData();
-  if (removed) console.log(`• removed ${removed} previous demo accounts and their listings`);
+  if (removed) console.log(`• removed ${removed} previous demo accounts and listings`);
 
   const password = process.env.DEMO_USER_PASSWORD || `demo-${randomBytes(4).toString('hex')}`;
   const passwordHash = await hashPassword(password);
-
-  const sellers = new Map();
-  for (const s of DEMO_SELLERS) {
-    const user = await createUser(s, [ROLES.BUYER, ROLES.BIDDER, ROLES.SELLER], passwordHash);
-    const profile = await prisma.sellerProfile.create({
-      data: {
-        userId: user.id,
-        businessName: s.businessName,
-        businessType: s.businessType,
-        city: s.city,
-        address: s.address,
-        bio: s.bio,
-        status: 'APPROVED',
-        approvedAt: new Date(),
-        ratingAvg: 440 + (s.key.length * 7) % 55, // 4.40–4.94
-        ratingCount: 12 + s.key.length * 3,
-      },
-    });
-    sellers.set(s.key, profile);
-  }
 
   const bidders = [];
   for (const b of DEMO_BIDDERS) bidders.push(await createUser(b, [ROLES.BUYER, ROLES.BIDDER], passwordHash));
 
   const categories = new Map((await prisma.category.findMany()).map((c) => [c.slug, c]));
-  const fees = (await prisma.systemSetting.findUnique({ where: { key: 'fees.commission' } }))?.value ?? { buyerPremiumBp: 0 };
+  const fees = (await prisma.systemSetting.findUnique({ where: { key: 'fees' } }))?.value ?? { buyerPremiumBp: 0 };
   const rules = (await prisma.systemSetting.findUnique({ where: { key: 'auction.rules' } }))?.value ?? { paymentDeadlineHours: 48 };
   const luba = (await prisma.systemSetting.findUnique({ where: { key: 'auction.lowestUniqueBid' } }))?.value ?? SETTING_DEFINITIONS['auction.lowestUniqueBid'].default;
 
@@ -140,16 +120,15 @@ async function main() {
   const liveAuctionIds = [];
 
   for (const item of DEMO_ITEMS) {
-    const seller = sellers.get(item.seller);
     const category = categories.get(item.category);
-    if (!seller || !category) throw new Error(`Bad seller or category on ${item.key}`);
+    if (!category) throw new Error(`Bad category on ${item.key}`);
     if (!DEMO_SPECS[item.key]) throw new Error(`No spec sheet for ${item.key}`);
     const random = rng(item.key);
     const { status, startsAt, endsAt } = scheduleTimes(item.schedule, now);
 
     const product = await prisma.product.create({
       data: {
-        sellerId: seller.id,
+        sellerId: house.id,
         categoryId: category.id,
         title: item.title,
         description: item.description,
@@ -166,8 +145,8 @@ async function main() {
     await prisma.productImage.createMany({ data: stored.map((img, i) => ({ productId: product.id, key: img.key, width: img.width, height: img.height, sortOrder: i })) });
 
     const lastBidAt = status === 'LIVE' ? new Date(now - 20_000) : endsAt;
-    const sellerPrice = etbToMinor(item.priceEtb);
-    const terms = defaultBiddingTerms({ sellerPrice, categoryBidFee: category.defaultBidFee, settings: luba });
+    const itemCost = etbToMinor(item.priceEtb);
+    const terms = defaultBiddingTerms({ itemCost, categoryBidFee: category.defaultBidFee, settings: luba });
     // Demo bids are created as already paid (ACTIVE) without fee payment records.
     const bids = item.bids > 0 && status !== 'SCHEDULED' ? buildBids(item, bidders, startsAt, lastBidAt, random) : [];
 
@@ -175,8 +154,8 @@ async function main() {
       data: {
         productId: product.id,
         status,
-        sellerPrice,
-        marketValue: sellerPrice,
+        itemCost,
+        marketValue: itemCost,
         ...terms,
         bidCount: bids.length,
         startsAt,
@@ -220,7 +199,7 @@ async function main() {
       item: item.title.length > 44 ? `${item.title.slice(0, 43)}…` : item.title,
       status: outcome ? `CLOSED (${outcome})` : status,
       bids: bids.length,
-      value: `ETB ${minorToEtb(sellerPrice)}`,
+      value: `ETB ${minorToEtb(itemCost)}`,
       fee: `ETB ${minorToEtb(terms.bidFee)}`,
       won: price === null ? '' : `ETB ${minorToEtb(price)}`,
       ends: status === 'SCHEDULED' ? `starts ${startsAt.toISOString().slice(0, 16)}Z` : endsAt.toISOString().slice(0, 16) + 'Z',
@@ -234,10 +213,10 @@ async function main() {
   });
 
   console.table(summary);
-  console.log(`\n✓ ${DEMO_SELLERS.length} sellers, ${DEMO_BIDDERS.length} bidders, ${DEMO_ITEMS.length} auctions`);
-  console.log('\nDemo logins (all share one password):');
+  console.log(`\n✓ ${DEMO_BIDDERS.length} bidders, ${DEMO_ITEMS.length} LOW BID auctions`);
+  console.log('\nDemo bidder logins (all share one password):');
   console.log(`  bidder  ${DEMO_BIDDERS[0].phone}  (${DEMO_BIDDERS[0].firstName} ${DEMO_BIDDERS[0].lastName})`);
-  console.log(`  seller  ${DEMO_SELLERS[0].phone}  (${DEMO_SELLERS[0].businessName})`);
+  console.log('  staff   set SUPER_ADMIN_PHONE / SUPER_ADMIN_PASSWORD and run bun run db:seed');
   console.log(`  password: ${password}${process.env.DEMO_USER_PASSWORD ? ' (from DEMO_USER_PASSWORD)' : ' (random; set DEMO_USER_PASSWORD to choose it)'}`);
 }
 

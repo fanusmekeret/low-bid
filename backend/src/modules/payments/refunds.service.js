@@ -10,7 +10,7 @@ import { recordAudit } from '../audit/audit.service.js';
 import { notify } from '../notifications/notifications.service.js';
 import { getSetting } from '../settings/settings.service.js';
 import { writeLedger } from './ledger.service.js';
-import { ledger, refundableAmount, splitSaleRefund } from './payment.rules.js';
+import { ledger, refundableAmount } from './payment.rules.js';
 
 const MAX_ATTEMPTS = 5;
 const OPEN = ['REQUESTED', 'APPROVED', 'PROCESSING'];
@@ -140,7 +140,7 @@ export async function checkRefund(refundId) {
 }
 
 /**
- * Money has gone back to the customer: update the payment, ledger, payout and result.
+ * Money has gone back to the customer: update the payment, ledger and result.
  * Used by Chapa confirmation and by an admin recording a manual refund.
  */
 export async function completeRefund(refundId, { providerRef, actorId = null, req } = {}) {
@@ -160,23 +160,9 @@ export async function completeRefund(refundId, { providerRef, actorId = null, re
     } else if (r.kind === 'LATE_PAYMENT') {
       lines = ledger.unappliedRefunded(r.amount);
     } else {
-      // Sale refund: take it from what the seller has not been paid yet, then from the platform.
-      const payout = payment.resultId ? await tx.sellerPayout.findUnique({ where: { resultId: payment.resultId } }) : null;
-      const unpaid = payout && ['PENDING', 'ON_HOLD', 'FAILED'].includes(payout.status) ? payout.netAmount : 0n;
-      const split = splitSaleRefund(r.amount, { sellerNetUnpaid: unpaid });
-      lines = ledger.saleRefunded(split);
-      if (payout && split.fromSeller > 0n) {
-        const net = payout.netAmount - split.fromSeller;
-        await tx.sellerPayout.update({ where: { id: payout.id }, data: { netAmount: net, ...(net === 0n && { status: 'CANCELLED' }) } });
-      }
+      lines = ledger.saleRefunded(r.amount);
       if (refunded >= payment.amount && payment.resultId) {
         await tx.auctionResult.update({ where: { id: payment.resultId }, data: { status: 'CANCELLED' } });
-        // Fully refunded sale: the seller is not paid what is left of their price.
-        const rest = payout ? await tx.sellerPayout.findUnique({ where: { id: payout.id } }) : null;
-        if (rest && ['PENDING', 'ON_HOLD', 'FAILED'].includes(rest.status) && rest.netAmount > 0n) {
-          await tx.sellerPayout.update({ where: { id: rest.id }, data: { status: 'CANCELLED', notes: 'Sale refunded' } });
-          lines = [...lines, ...ledger.payoutReversed(rest.netAmount)];
-        }
       }
     }
     await writeLedger(tx, lines, { paymentId: payment.id, refundId: r.id });
@@ -202,7 +188,6 @@ export async function adminCreateRefund(paymentId, { amount, reason }, { actorId
     const pending = await openRefundTotal(tx, payment.id);
     const value = amount ?? refundableAmount(payment, pending);
     const r = await createRefundInTx(tx, { payment, kind: payment.purpose === 'BID_FEE' ? 'BID_FEE_REFUND' : 'SALE_REFUND', amount: value, reason, requestedById: actorId });
-    if (payment.resultId) await tx.sellerPayout.updateMany({ where: { resultId: payment.resultId, status: 'PENDING' }, data: { status: 'ON_HOLD', notes: 'Refund in progress' } });
     await tx.refund.update({ where: { id: r.id }, data: { reviewedById: BigInt(actorId), reviewedAt: new Date() } });
     await recordAudit({ actorId, action: 'refund.create', entity: 'payment', entityId: payment.id, after: { amount: value, reason }, req }, tx);
     return r;
@@ -213,19 +198,21 @@ export async function adminCreateRefund(paymentId, { amount, reason }, { actorId
 
 /** A winner asks for their money back (item not as described, not delivered…). An admin decides. */
 export async function requestRefundByBuyer(userId, txRef, reason, { req }) {
-  const { disputeWindowDays } = await getSetting('payout.policy');
+  const { disputeWindowDays } = await getSetting('orders.policy');
   return prisma.$transaction(async (tx) => {
     const p = await tx.payment.findUnique({ where: { txRef }, include: { result: true } });
     if (!p || p.userId !== BigInt(userId)) throw notFound('PAYMENT_NOT_FOUND', 'Payment not found');
     if (p.purpose !== 'WINNING_BID' || !p.result) throw badRequest('REFUND_NOT_ALLOWED', 'Bid fees are refunded automatically when an auction is cancelled or does not get enough bids');
-    if (p.result.status === 'FULFILLED') throw conflict('ALREADY_CONFIRMED', 'You confirmed you received this item. Contact support');
-    const deadline = (p.verifiedAt?.getTime() ?? 0) + disputeWindowDays * 86_400_000;
-    if (Date.now() > deadline) throw conflict('DISPUTE_WINDOW_CLOSED', `Refund requests are accepted within ${disputeWindowDays} days of payment. Contact support`);
+    if (p.result.confirmedAt) throw conflict('ALREADY_CONFIRMED', 'You confirmed you received this item in good order. Contact support');
+    if (!['PAID', 'FULFILLED'].includes(p.result.status)) throw conflict('REFUND_NOT_ALLOWED', 'This order cannot be refunded now');
+    // The window runs from delivery (or from payment, while the item is not delivered yet).
+    const from = p.result.fulfilledAt ?? p.verifiedAt ?? new Date(0);
+    const deadline = from.getTime() + disputeWindowDays * 86_400_000;
+    if (p.result.fulfilledAt && Date.now() > deadline) throw conflict('DISPUTE_WINDOW_CLOSED', `Refund requests are accepted within ${disputeWindowDays} days of delivery. Contact support`);
     await tx.$queryRaw`SELECT id FROM payments WHERE id = ${p.id} FOR UPDATE`;
     if (await tx.refund.count({ where: { paymentId: p.id, status: { in: OPEN } } })) throw conflict('REFUND_ALREADY_OPEN', 'A refund request is already open for this payment');
     const r = await createRefundInTx(tx, { payment: p, kind: 'SALE_REFUND', amount: refundableAmount(p), reason, requestedById: userId, status: 'REQUESTED' });
     await tx.auctionResult.update({ where: { id: p.result.id }, data: { status: 'DISPUTED' } });
-    await tx.sellerPayout.updateMany({ where: { resultId: p.result.id, status: 'PENDING' }, data: { status: 'ON_HOLD', notes: 'Buyer refund request' } });
     await recordAudit({ actorId: userId, action: 'refund.request', entity: 'payment', entityId: p.id, after: { reason }, req }, tx);
     return r;
   });
@@ -238,8 +225,8 @@ export async function reviewRefundRequest(refundId, { approve, reason }, { actor
     const data = { reviewedById: BigInt(actorId), reviewedAt: new Date(), status: approve ? 'APPROVED' : 'REJECTED', ...(!approve && { failureReason: reason }) };
     await tx.refund.update({ where: { id: refund.id }, data });
     if (!approve && refund.payment.resultId) {
-      await tx.auctionResult.update({ where: { id: refund.payment.resultId }, data: { status: 'PAID' } });
-      await tx.sellerPayout.updateMany({ where: { resultId: refund.payment.resultId, status: 'ON_HOLD' }, data: { status: 'PENDING', notes: null } });
+      const result = await tx.auctionResult.findUnique({ where: { id: refund.payment.resultId } });
+      await tx.auctionResult.update({ where: { id: result.id }, data: { status: result.fulfilledAt ? 'FULFILLED' : 'PAID' } });
     }
     await recordAudit({ actorId, action: approve ? 'refund.approve' : 'refund.reject', entity: 'refund', entityId: refund.id, after: { reason }, req }, tx);
     return refund;

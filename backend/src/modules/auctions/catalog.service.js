@@ -164,7 +164,6 @@ export async function auctionDetail(auctionId, viewerId) {
     const count = (st) => mine.find((g) => g.status === st)?._count._all ?? 0;
     detail.viewer = {
       isWatching: Boolean(watch),
-      isSeller: a.product.seller.userId === me,
       myBidCount: count('ACTIVE'),
       myPendingCount: count('PENDING_PAYMENT'),
       myStatus: count('ACTIVE') > 0 ? myAuctionStatus(a, me) : null,

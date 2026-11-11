@@ -6,14 +6,12 @@ import { authenticate, requirePermission } from '../../middleware/auth.js';
 import { validate } from '../../middleware/validate.js';
 import { etbToMinor, moneyDto } from '../../utils/money.js';
 import { PERMISSIONS } from '../rbac/permissions.js';
-import { requireApprovedSeller } from '../sellers/sellers.service.js';
 import { ledgerBalances } from './ledger.service.js';
 import { presentPayment, presentRefund } from './payment.presenter.js';
 import { TX_REF_PATTERN } from './payment.rules.js';
 import * as payments from './payments.service.js';
-import * as payouts from './payouts.service.js';
 import * as refunds from './refunds.service.js';
-import { confirmReceived } from './results.service.js';
+import { confirmReceived, listOrders, markDelivered } from './results.service.js';
 import { handleChapaWebhook } from './webhooks.service.js';
 
 const P = PERMISSIONS;
@@ -70,10 +68,6 @@ paymentsRouter.get('/', authenticate, validate({ query: z.object(page) }), async
   res.json(await payments.paymentHistory(req.auth.userId, req.valid.query));
 });
 
-paymentsRouter.get('/banks', authenticate, async (_req, res) => {
-  res.json({ data: await payouts.listBanks() });
-});
-
 paymentsRouter.get('/:txRef', authenticate, validate({ params: txRefParam }), async (req, res) => {
   res.set('Cache-Control', 'no-store');
   res.json({ data: await payments.paymentStatus(req.auth.userId, req.valid.params.txRef) });
@@ -99,22 +93,7 @@ myPaymentsRouter.post('/auctions/:id/confirm-received', authenticate, validate({
   res.json({ data: await confirmReceived(req.auth.userId, req.valid.params.id, { req }) });
 });
 
-// ───────────── /api/v1/seller/earnings and /seller/payouts ─────────────
-// Middleware is per route (not router.use): this router shares the /seller prefix with the
-// application routes, which must stay reachable for sellers who are not approved yet.
-const approvedSeller = [authenticate, requirePermission(P.SELLER_DASHBOARD), async (req, _res, next) => {
-  req.seller = await requireApprovedSeller(req.auth.userId);
-  next();
-}];
-export const sellerMoneyRouter = Router();
-sellerMoneyRouter.get('/earnings', ...approvedSeller, async (req, res) => {
-  res.json({ data: await payouts.sellerEarnings(req.seller.id) });
-});
-sellerMoneyRouter.get('/payouts', ...approvedSeller, validate({ query: z.object({ status: z.enum(['PENDING', 'ON_HOLD', 'PROCESSING', 'PAID', 'FAILED', 'CANCELLED']).optional(), ...page }) }), async (req, res) => {
-  res.json(await payouts.sellerPayouts(req.seller.id, req.valid.query));
-});
-
-// ───────────── /api/v1/admin/payments, /refunds, /payouts, /ledger ─────────────
+// ───────────── /api/v1/admin/payments, /refunds, /orders, /ledger ─────────────
 export const adminPaymentsRouter = Router();
 adminPaymentsRouter.use(authenticate, requirePermission(P.ADMIN_ACCESS));
 
@@ -200,22 +179,14 @@ adminPaymentsRouter.post('/refunds/:id/mark-processed', requirePermission(P.REFU
   res.json({ data: presentRefund(await refunds.markRefundProcessed(req.valid.params.id, req.valid.body.providerRef, ctx(req))) });
 });
 
-adminPaymentsRouter.get('/payouts', requirePermission(P.PAYOUT_MANAGE), validate({
-  query: z.object({ status: z.enum(['PENDING', 'ON_HOLD', 'PROCESSING', 'PAID', 'FAILED', 'CANCELLED']).optional(), due: z.enum(['true']).optional(), ...page }),
+// Won items LOW BID must deliver. Default: paid and waiting for delivery.
+adminPaymentsRouter.get('/orders', requirePermission(P.ORDER_FULFIL), validate({
+  query: z.object({ status: z.enum(['AWAITING_PAYMENT', 'PAID', 'FULFILLED', 'DISPUTED', 'PAYMENT_EXPIRED', 'CANCELLED']).default('PAID'), ...page }),
 }), async (req, res) => {
-  res.json(await payouts.listPayoutsAdmin({ ...req.valid.query, due: req.valid.query.due === 'true' }));
+  res.json(await listOrders(req.valid.query));
 });
-adminPaymentsRouter.post('/payouts/:id/send', requirePermission(P.PAYOUT_MANAGE), validate({ params: idParam }), async (req, res) => {
-  res.json({ data: await payouts.sendPayout(req.valid.params.id, ctx(req)) });
-});
-adminPaymentsRouter.post('/payouts/:id/mark-paid', requirePermission(P.PAYOUT_MANAGE), validate({ params: idParam, body: z.object({ reference: z.string().trim().min(3).max(100) }) }), async (req, res) => {
-  res.json({ data: await payouts.markPayoutPaid(req.valid.params.id, req.valid.body.reference, ctx(req)) });
-});
-adminPaymentsRouter.post('/payouts/:id/hold', requirePermission(P.PAYOUT_MANAGE), validate({ params: idParam, body: reasonBody }), async (req, res) => {
-  res.json({ data: await payouts.setPayoutHold(req.valid.params.id, { hold: true, reason: req.valid.body.reason }, ctx(req)) });
-});
-adminPaymentsRouter.post('/payouts/:id/release', requirePermission(P.PAYOUT_MANAGE), validate({ params: idParam }), async (req, res) => {
-  res.json({ data: await payouts.setPayoutHold(req.valid.params.id, { hold: false }, ctx(req)) });
+adminPaymentsRouter.post('/orders/:id/delivered', requirePermission(P.ORDER_FULFIL), validate({ params: idParam, body: z.object({ note: z.string().trim().max(500).optional() }) }), async (req, res) => {
+  res.json({ data: await markDelivered(req.valid.params.id, { note: req.valid.body.note, ...ctx(req) }) });
 });
 
 adminPaymentsRouter.get('/ledger/balances', requirePermission(P.REPORT_VIEW), async (_req, res) => {

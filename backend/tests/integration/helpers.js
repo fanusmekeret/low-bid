@@ -1,5 +1,5 @@
 // Integration tests need a real MySQL database: set TEST_DATABASE_URL and run
-// `npm run db:deploy` against it once (DATABASE_URL=$TEST_DATABASE_URL npx prisma migrate deploy).
+// `bun run db:deploy` against it once (DATABASE_URL=$TEST_DATABASE_URL bunx prisma migrate deploy).
 // The tests wipe every table in that database.
 
 process.env.NODE_ENV = 'test';
@@ -75,6 +75,8 @@ export async function setup() {
       await seed.seedRbac();
       await seed.seedCategories();
       await seed.seedSettings();
+      (await import('../../src/modules/house/house.service.js')).resetHouseSellerCache();
+      await seed.seedHouseSeller();
       const { invalidatePermissionCache } = await import('../../src/modules/rbac/rbac.service.js');
       invalidatePermissionCache();
       (await import('../../src/modules/settings/settings.service.js')).clearSettingsCache();

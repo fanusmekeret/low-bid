@@ -21,9 +21,9 @@ void main() {
   test('server error codes are translated, unknown codes fall back', () {
     const en = S('en');
     const am = S('am');
-    const tooLow = ApiException(code: 'BID_TOO_LOW', message: 'x', statusCode: 409);
-    expect(en.error(tooLow), 'Someone bid higher. Raise your bid.');
-    expect(am.error(tooLow), isNot(en.error(tooLow)));
+    const dup = ApiException(code: 'DUPLICATE_BID_AMOUNT', message: 'x', statusCode: 409);
+    expect(en.error(dup), 'You already bid this amount. Choose a different one.');
+    expect(am.error(dup), isNot(en.error(dup)));
     const unknown = ApiException(code: 'SOMETHING_NEW', message: 'Server says hi', statusCode: 400);
     expect(en.error(unknown), isNotEmpty);
   });
@@ -32,6 +32,6 @@ void main() {
     const en = S('en');
     expect(en.bids(1), contains('1'));
     expect(en.bids(12), contains('12'));
-    expect(en.minimumIs('ETB 5,000'), contains('ETB 5,000'));
+    expect(en.bidFeeEach('ETB 10'), contains('ETB 10'));
   });
 }

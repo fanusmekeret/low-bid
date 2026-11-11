@@ -10,11 +10,11 @@ DioException _response(int status, Object data) {
 void main() {
   test('reads the server error envelope', () {
     final e = ApiException.fromDio(_response(409, {
-      'error': {'code': 'BID_TOO_LOW', 'message': 'Raise your bid', 'details': {'nextMinimumBid': {'minor': '500000'}}},
+      'error': {'code': 'BID_OUT_OF_RANGE', 'message': 'Out of range', 'details': {'maxBid': {'minor': '500000'}}},
     }));
-    expect(e.code, 'BID_TOO_LOW');
+    expect(e.code, 'BID_OUT_OF_RANGE');
     expect(e.statusCode, 409);
-    expect(e.detailMap['nextMinimumBid'], {'minor': '500000'});
+    expect(e.detailMap['maxBid'], {'minor': '500000'});
   });
 
   test('maps validation details to field errors', () {

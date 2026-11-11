@@ -1,7 +1,7 @@
 // Pure product rules (no database), shared by the service and the tests.
 
 /** Auctions in these states freeze the product: buyers are bidding on exactly what they saw. */
-const LOCKING_AUCTION_STATUSES = new Set(['PENDING_APPROVAL', 'SCHEDULED', 'LIVE']);
+const LOCKING_AUCTION_STATUSES = new Set(['SCHEDULED', 'LIVE']);
 
 /**
  * @param {{ status: string, auctions?: { status: string, result?: { outcome: string } | null }[] }} product
@@ -21,17 +21,12 @@ export function editLock(product) {
 }
 
 /**
- * Editing an approved listing sends it back for review, so a seller cannot get a listing
- * approved and then swap the item or the photos.
- */
-export const statusAfterEdit = (status) => (status === 'APPROVED' ? 'PENDING_REVIEW' : status);
-
-/**
+ * Only drafts are published, and only with enough photos.
  * @returns {null | { code: string, message: string, details?: object }}
  */
-export function submitBlocker(product, { imageCount, minImages }) {
-  if (!['DRAFT', 'REJECTED'].includes(product.status)) {
-    return { code: 'PRODUCT_NOT_SUBMITTABLE', message: `A ${product.status.toLowerCase().replace('_', ' ')} listing cannot be submitted` };
+export function publishBlocker(product, { imageCount, minImages }) {
+  if (product.status !== 'DRAFT') {
+    return { code: 'PRODUCT_NOT_DRAFT', message: `This listing is ${product.status.toLowerCase()}, not a draft` };
   }
   if (imageCount < minImages) {
     return { code: 'PRODUCT_NEEDS_IMAGES', message: `Add at least ${minImages} photo${minImages > 1 ? 's' : ''} first`, details: { imageCount, minImages } };

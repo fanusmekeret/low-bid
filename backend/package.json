@@ -12,9 +12,12 @@
     "seed": "bun src/db/seed.js"
   },
   "scripts": {
-    "dev": "bun --watch src/server.js",
+    "dev": "bun scripts/dev-services.js && bun --watch src/server.js",
+    "services:up": "bun scripts/dev-services.js",
+    "services:down": "bun scripts/dev-services.js down",
     "start": "bun src/server.js",
     "worker": "bun src/worker.js",
+    "worker:dev": "bun scripts/dev-services.js && bun --watch src/worker.js",
     "prisma:generate": "bunx prisma generate",
     "db:migrate": "bunx prisma migrate dev",
     "db:deploy": "bunx prisma migrate deploy",

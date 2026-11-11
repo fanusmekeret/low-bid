@@ -1,7 +1,7 @@
 import { imageUrls } from '../../services/media/productImages.js';
 import { editLock } from './products.rules.js';
 
-/** Product shape for its seller and for admins (not the public auction views). */
+/** Product shape for LOW BID staff (not the public auction views). */
 export function presentProduct(p) {
   const lock = editLock(p);
   const attrs = p.attributes ?? {};
@@ -20,7 +20,6 @@ export function presentProduct(p) {
     auctions: (p.auctions ?? []).map((a) => ({ id: a.id.toString(), status: a.status, startsAt: a.startsAt, endsAt: a.endsAt, outcome: a.result?.outcome ?? null })),
     editable: lock === null,
     lockedReason: lock?.code ?? null,
-    seller: p.seller ? { id: p.seller.id.toString(), businessName: p.seller.businessName, status: p.seller.status } : undefined,
     createdAt: p.createdAt,
     updatedAt: p.updatedAt,
   };

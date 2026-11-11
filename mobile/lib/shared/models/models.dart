@@ -16,7 +16,6 @@ class UserModel {
     required this.roles,
     required this.permissions,
     this.email,
-    this.sellerStatus,
   });
 
   final String id;
@@ -28,12 +27,10 @@ class UserModel {
   final bool phoneVerified;
   final List<String> roles;
   final List<String> permissions;
-  final String? sellerStatus; // PENDING, APPROVED, REJECTED, SUSPENDED
 
   String get fullName => '$firstName $lastName'.trim();
   String get initials => '${firstName.isEmpty ? '' : firstName[0]}${lastName.isEmpty ? '' : lastName[0]}'.toUpperCase();
   bool can(String permission) => permissions.contains(permission);
-  bool get isApprovedSeller => sellerStatus == 'APPROVED';
 
   factory UserModel.fromJson(Json j) => UserModel(
         id: str(j['id']),
@@ -45,7 +42,6 @@ class UserModel {
         phoneVerified: toBool(j['phoneVerified']),
         roles: strings(j['roles']),
         permissions: strings(j['permissions']),
-        sellerStatus: strOrNull(asJson(j['seller'])['status']),
       );
 }
 
@@ -342,17 +338,15 @@ class AuctionDetailModel {
 }
 
 class ViewerInfo {
-  const ViewerInfo({required this.isWatching, required this.isSeller, this.myBidCount = 0, this.myPendingCount = 0, this.myStatus});
+  const ViewerInfo({required this.isWatching, this.myBidCount = 0, this.myPendingCount = 0, this.myStatus});
 
   final bool isWatching;
-  final bool isSeller;
   final int myBidCount; // paid bids
   final int myPendingCount; // bids whose fee is not confirmed yet
   final String? myStatus; // BIDDING, WON, LOST, CANCELLED
 
   ViewerInfo copyWith({bool? isWatching, int? myBidCount, int? myPendingCount, String? myStatus}) => ViewerInfo(
         isWatching: isWatching ?? this.isWatching,
-        isSeller: isSeller,
         myBidCount: myBidCount ?? this.myBidCount,
         myPendingCount: myPendingCount ?? this.myPendingCount,
         myStatus: myStatus ?? this.myStatus,
@@ -360,7 +354,6 @@ class ViewerInfo {
 
   factory ViewerInfo.fromJson(Json j) => ViewerInfo(
         isWatching: toBool(j['isWatching']),
-        isSeller: toBool(j['isSeller']),
         myBidCount: toInt(j['myBidCount']),
         myPendingCount: toInt(j['myPendingCount']),
         myStatus: strOrNull(j['myStatus']),
@@ -613,253 +606,4 @@ class ReceiptModel {
       providerReference: strOrNull(j['providerReference']),
     );
   }
-}
-
-// ───────────────────────────── Seller ─────────────────────────────
-
-class SellerDocument {
-  const SellerDocument({required this.id, required this.documentType, required this.status, this.rejectionReason});
-
-  final String id;
-  final String documentType;
-  final String status;
-  final String? rejectionReason;
-
-  factory SellerDocument.fromJson(Json j) => SellerDocument(
-        id: str(j['id']),
-        documentType: str(j['documentType']),
-        status: str(j['status']),
-        rejectionReason: strOrNull(j['rejectionReason']),
-      );
-}
-
-class SellerProfileModel {
-  const SellerProfileModel({
-    required this.id,
-    required this.status,
-    required this.businessName,
-    required this.businessType,
-    required this.city,
-    required this.documents,
-    required this.missing,
-    this.tinNumber,
-    this.address,
-    this.bio,
-    this.payoutMethod,
-    this.payoutBankCode,
-    this.payoutAccountName,
-    this.payoutAccountNo,
-  });
-
-  final String id;
-  final String status;
-  final String businessName;
-  final String businessType;
-  final String? tinNumber;
-  final String city;
-  final String? address;
-  final String? bio;
-  final String? payoutMethod;
-  final String? payoutBankCode;
-  final String? payoutAccountName;
-  final String? payoutAccountNo;
-  final List<SellerDocument> documents;
-  final List<String> missing;
-
-  factory SellerProfileModel.fromJson(Json j) {
-    final p = asJson(j['payout']);
-    return SellerProfileModel(
-      id: str(j['id']),
-      status: str(j['status']),
-      businessName: str(j['businessName']),
-      businessType: str(j['businessType'], 'INDIVIDUAL'),
-      tinNumber: strOrNull(j['tinNumber']),
-      city: str(j['city']),
-      address: strOrNull(j['address']),
-      bio: strOrNull(j['bio']),
-      payoutMethod: strOrNull(p['method']),
-      payoutBankCode: strOrNull(p['bankCode']),
-      payoutAccountName: strOrNull(p['accountName']),
-      payoutAccountNo: strOrNull(p['accountNo']),
-      documents: listOf(j['documents'], SellerDocument.fromJson),
-      missing: strings(j['missing']),
-    );
-  }
-}
-
-class ProductImage {
-  const ProductImage({required this.id, required this.urls});
-  final String id;
-  final ImageUrls urls;
-}
-
-class ProductModel {
-  const ProductModel({
-    required this.id,
-    required this.status,
-    required this.title,
-    required this.description,
-    required this.condition,
-    required this.location,
-    required this.highlights,
-    required this.specs,
-    required this.categoryId,
-    required this.images,
-    required this.editable,
-    required this.hasActiveAuction,
-    this.categoryName,
-    this.rejectionReason,
-    this.lockedReason,
-  });
-
-  final String id;
-  final String status;
-  final String? rejectionReason;
-  final String title;
-  final String description;
-  final String condition;
-  final String location;
-  final List<String> highlights;
-  final List<SpecGroup> specs;
-  final int categoryId;
-  final String? categoryName;
-  final List<ProductImage> images;
-  final bool editable;
-  final String? lockedReason;
-  final bool hasActiveAuction;
-
-  bool get canSubmit => (status == 'DRAFT' || status == 'REJECTED') && images.isNotEmpty;
-
-  /// Same listing with photos in a new order (shown while the server saves it).
-  ProductModel withImages(List<ProductImage> next) => ProductModel(
-        id: id,
-        status: status,
-        title: title,
-        description: description,
-        condition: condition,
-        location: location,
-        highlights: highlights,
-        specs: specs,
-        categoryId: categoryId,
-        images: next,
-        editable: editable,
-        hasActiveAuction: hasActiveAuction,
-        categoryName: categoryName,
-        rejectionReason: rejectionReason,
-        lockedReason: lockedReason,
-      );
-  bool get canAuction => status == 'APPROVED' && editable && !hasActiveAuction;
-
-  factory ProductModel.fromJson(Json j) {
-    final cat = asJson(j['category']);
-    final auctions = j['auctions'] is List ? j['auctions'] as List : const [];
-    return ProductModel(
-      id: str(j['id']),
-      status: str(j['status']),
-      rejectionReason: strOrNull(j['rejectionReason']),
-      title: str(j['title']),
-      description: str(j['description']),
-      condition: str(j['condition'], 'NEW'),
-      location: str(j['location']),
-      highlights: strings(j['highlights']),
-      specs: listOf(j['specs'], SpecGroup.fromJson),
-      categoryId: toInt(cat['id']),
-      categoryName: strOrNull(cat['nameEn']),
-      images: listOf(j['images'], (i) => ProductImage(id: str(i['id']), urls: ImageUrls.fromJson(i['urls'])!)),
-      editable: toBool(j['editable']),
-      lockedReason: strOrNull(j['lockedReason']),
-      hasActiveAuction: auctions.any((a) => a is Map && ['PENDING_APPROVAL', 'SCHEDULED', 'LIVE'].contains(a['status'])),
-    );
-  }
-}
-
-class ManagedAuction {
-  const ManagedAuction({
-    required this.id,
-    required this.status,
-    required this.title,
-    required this.sellerPrice,
-    required this.bidFee,
-    required this.feesCollected,
-    required this.bidCount,
-    required this.startsAt,
-    required this.endsAt,
-    this.coverImage,
-    this.finalPrice,
-    this.resultStatus,
-    this.cancelledReason,
-  });
-
-  final String id;
-  final String status;
-  final String title;
-  final ImageUrls? coverImage;
-  final Money sellerPrice; // what the seller receives (before commission)
-  final Money bidFee;
-  final Money feesCollected;
-  final int bidCount; // paid bids
-  final DateTime startsAt;
-  final DateTime endsAt;
-  final Money? finalPrice; // the winning bid, after the close
-  final String? resultStatus;
-  final String? cancelledReason;
-
-  factory ManagedAuction.fromJson(Json j) {
-    final p = asJson(j['product']);
-    final r = asJson(j['result']);
-    final now = DateTime.now().toUtc();
-    return ManagedAuction(
-      id: str(j['id']),
-      status: str(j['status']),
-      title: str(p['title']),
-      coverImage: ImageUrls.fromJson(p['coverImage']),
-      sellerPrice: Money.fromJson(j['sellerPrice']) ?? Money.zero,
-      bidFee: Money.fromJson(j['bidFee']) ?? Money.zero,
-      feesCollected: Money.fromJson(j['feesCollected']) ?? Money.zero,
-      bidCount: toInt(j['bidCount']),
-      startsAt: dateOr(j['startsAt'], now),
-      endsAt: dateOr(j['endsAt'], now),
-      finalPrice: Money.fromJson(r['finalPrice']),
-      resultStatus: strOrNull(r['status']),
-      cancelledReason: strOrNull(j['cancelledReason']),
-    );
-  }
-}
-
-class EarningsModel {
-  const EarningsModel({
-    required this.salesCount,
-    required this.grossSales,
-    required this.commission,
-    required this.netEarnings,
-    required this.paidOut,
-    required this.pending,
-    required this.onHold,
-  });
-
-  final int salesCount;
-  final Money grossSales;
-  final Money commission;
-  final Money netEarnings;
-  final Money paidOut;
-  final Money pending;
-  final Money onHold;
-
-  factory EarningsModel.fromJson(Json j) => EarningsModel(
-        salesCount: toInt(j['salesCount']),
-        grossSales: Money.fromJson(j['grossSales']) ?? Money.zero,
-        commission: Money.fromJson(j['commission']) ?? Money.zero,
-        netEarnings: Money.fromJson(j['netEarnings']) ?? Money.zero,
-        paidOut: Money.fromJson(j['paidOut']) ?? Money.zero,
-        pending: Money.fromJson(j['pending']) ?? Money.zero,
-        onHold: Money.fromJson(j['onHold']) ?? Money.zero,
-      );
-}
-
-class BankModel {
-  const BankModel({required this.code, required this.name, required this.isMobileMoney});
-  final String code;
-  final String name;
-  final bool isMobileMoney;
-  factory BankModel.fromJson(Json j) => BankModel(code: str(j['code']), name: str(j['name']), isMobileMoney: toBool(j['isMobileMoney']));
 }
