@@ -14,7 +14,11 @@ class LowBidLogo extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final ink = onDark ? Colors.white : (Theme.of(context).brightness == Brightness.dark ? Colors.white : AppColors.teal);
-    return Row(
+    // Scales down instead of overflowing when the window is very narrow.
+    return FittedBox(
+      fit: BoxFit.scaleDown,
+      alignment: AlignmentDirectional.centerStart,
+      child: Row(
       mainAxisSize: MainAxisSize.min,
       children: [
         SizedBox.square(dimension: size, child: CustomPaint(painter: _MarkPainter())),
@@ -30,6 +34,7 @@ class LowBidLogo extends StatelessWidget {
           ),
         ],
       ],
+    ),
     );
   }
 }
